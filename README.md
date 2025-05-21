@@ -18,5 +18,11 @@ Juncture is a serverless application that provides deep integrations with hard A
 PORT=<PORT, i.e. 8000>
 UPSTASH_REDIS_REST_URL=<UPSTASH_REDIS_REST_URL>
 UPSTASH_REDIS_REST_TOKEN=<UPSTASH_REDIS_REST_TOKEN>
+
+# Jira (if self-hosting, provide your own credentials)
+DEFAULT_JIRA_CLIENT_ID=<JIRA_CLIENT_ID>
+DEFAULT_JIRA_CLIENT_SECRET=<JIRA_CLIENT_SECRET>
+DEFAULT_JIRA_SCOPES=<JIRA_SCOPES>
+DEFAULT_JIRA_REDIRECT_URI=[API_BASE_URL]/api/oauth/authorization-callback
 ```
 3. Run `npm run dev` to start the server.

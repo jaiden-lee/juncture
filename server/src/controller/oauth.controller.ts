@@ -8,15 +8,20 @@ type GetAuthorizationURIBody = {
     client_id?: string; // can directly provide or get from dashboard
     redirect_uri?: string;
     scopes?: string[];
+    juncture_public_key?: string;
 }
 
 export default function createOAuthController(credentialStore?: CredentialStore) {
 
     async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
-        let { provider, client_id, redirect_uri, scopes } = req.body;
+        let { provider, client_id, redirect_uri, scopes, juncture_public_key } = req.body;
 
         if (credentialStore) {
-            const credentials = await credentialStore.get(provider, client_id!);
+            if (!juncture_public_key) {
+                res.status(400).json({ error: 'Juncture public key is required' });
+                return;
+            }
+            const credentials = await credentialStore.get(provider, juncture_public_key!);
             if (!credentials) {
                 res.status(400).json({ error: 'Invalid client ID' });
                 return;

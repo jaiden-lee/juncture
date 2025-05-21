@@ -6,5 +6,5 @@ export type Credentials = {
 }
 
 export interface CredentialStore {
-    get: (provider: string, publicClientId: string) => Promise<Credentials | null>;
+    get: (provider: string, juncturePublicKey: string) => Promise<Credentials | null>;
 }
