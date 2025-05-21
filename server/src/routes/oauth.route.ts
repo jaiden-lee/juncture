@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import * as oauthController from '../controller/oauth.controller';
-
-const router = Router();
-
-/** 
- * @route POST /api/oauth/get-authorization-uri/
- * @description Get authorization URI for a specific provider
- * @param {string} provider - The provider to get the authorization URI for
- * @returns {string} The authorization URI
- */
-router.post('/get-authorization-uri/', oauthController.getAuthorizationURI);
+import { CredentialStore } from '../utils/types';
+import createOAuthController from '../controller/oauth.controller';
 
 
-export default router;
+export default function createOAuthRouter(credentialStore?: CredentialStore) {
+    const router = Router();
+    const oauthController = createOAuthController(credentialStore);
+
+    router.post('/get-authorization-uri/', oauthController.getAuthorizationURI);
+    router.get('/authorization-callback/', oauthController.authorizationCallback);
+
+
+    return router;
+}
