@@ -89,7 +89,13 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
     return;
 }
 
-
+/**
+ * 
+ * @url_param provider The provider is the name of the provider (i.e. 'jira')
+ * @query_param code The authorization code (used to exchange for access token and refresh token)
+ * @query_param state The state (used to verify the request)
+ * @returns 
+ */
 export async function authorizationCallback(req: Request<{ provider: string }, {}, {}, OAuthCallbackQuery>, res: Response): Promise<void> {
     const { code, state } = req.query;
     const { provider } = req.params;
