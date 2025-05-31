@@ -1,16 +1,16 @@
 {
-  "id": "f2d7e71c-4890-4626-98a3-fbc08c609f32",
+  "id": "b0c40da7-014c-4a76-b524-035a5d08ea30",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.connection": {
+    "juncture-core.connection": {
       "name": "connection",
-      "schema": "",
+      "schema": "juncture-core",
       "columns": {
         "connection_id": {
           "name": "connection_id",
-          "type": "serial",
+          "type": "uuid",
           "primaryKey": true,
           "notNull": true
         },
@@ -22,20 +22,20 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "last_updated": {
           "name": "last_updated",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -49,9 +49,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.connection_external_map": {
+    "juncture-core.connection_external_map": {
       "name": "connection_external_map",
-      "schema": "",
+      "schema": "juncture-core",
       "columns": {
         "external_id": {
           "name": "external_id",
@@ -61,13 +61,14 @@
         },
         "provider": {
           "name": "provider",
-          "type": "text",
+          "type": "provider",
+          "typeSchema": "juncture-core",
           "primaryKey": false,
           "notNull": true
         },
         "connection_id": {
           "name": "connection_id",
-          "type": "serial",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         }
@@ -78,6 +79,7 @@
           "name": "connection_external_map_connection_id_connection_connection_id_fk",
           "tableFrom": "connection_external_map",
           "tableTo": "connection",
+          "schemaTo": "juncture-core",
           "columnsFrom": [
             "connection_id"
           ],
@@ -102,13 +104,13 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.jira_connection": {
+    "juncture-core.jira_connection": {
       "name": "jira_connection",
-      "schema": "",
+      "schema": "juncture-core",
       "columns": {
         "connection_id": {
           "name": "connection_id",
-          "type": "serial",
+          "type": "uuid",
           "primaryKey": true,
           "notNull": true
         },
@@ -126,14 +128,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "last_updated": {
           "name": "last_updated",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -145,6 +147,7 @@
           "name": "jira_connection_connection_id_connection_connection_id_fk",
           "tableFrom": "jira_connection",
           "tableTo": "connection",
+          "schemaTo": "juncture-core",
           "columnsFrom": [
             "connection_id"
           ],
@@ -162,8 +165,18 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
-  "schemas": {},
+  "enums": {
+    "juncture-core.provider": {
+      "name": "provider",
+      "schema": "juncture-core",
+      "values": [
+        "jira"
+      ]
+    }
+  },
+  "schemas": {
+    "juncture-core": "juncture-core"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},

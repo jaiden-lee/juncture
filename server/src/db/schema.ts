@@ -1,11 +1,14 @@
-import { pgTable, text, timestamp, primaryKey, pgEnum, uuid } from "drizzle-orm/pg-core";
+import { text, timestamp, primaryKey, uuid } from "drizzle-orm/pg-core";
+import { pgSchema } from "drizzle-orm/pg-core"
 
-export const providerEnum = pgEnum("provider", ["jira"]);
+export const junctureCoreSchema = pgSchema('juncture-core');
+
+export const providerEnum = junctureCoreSchema.enum("provider", ["jira"]);
 
 
 
 // 1. Connection table
-export const connection = pgTable('connection', {
+export const connection = junctureCoreSchema.table('connection', {
   connectionId: uuid('connection_id').primaryKey(),
   refreshToken: text('refresh_token').notNull(),
   expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
@@ -14,7 +17,7 @@ export const connection = pgTable('connection', {
 });
 
 // 2. ConnectionExternalMap table
-export const connectionExternalMap = pgTable('connection_external_map', {
+export const connectionExternalMap = junctureCoreSchema.table('connection_external_map', {
   externalId: text('external_id').notNull(),
   provider: providerEnum('provider').notNull(),
   connectionId: uuid('connection_id').notNull().references(() => connection.connectionId, { onDelete: 'cascade' }),
@@ -23,7 +26,7 @@ export const connectionExternalMap = pgTable('connection_external_map', {
 }));
 
 // 3. JiraConnection table
-export const jiraConnection = pgTable('jira_connection', {
+export const jiraConnection = junctureCoreSchema.table('jira_connection', {
   connectionId: uuid('connection_id').primaryKey().references(() => connection.connectionId, { onDelete: 'cascade' }),
   selectedJiraProjectId: text('selected_jira_project_id').notNull(),
   jiraSiteId: text('jira_site_id').notNull(),
