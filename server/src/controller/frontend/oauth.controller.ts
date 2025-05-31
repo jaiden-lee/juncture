@@ -3,6 +3,7 @@ import redis from '../../utils/redis';
 import crypto from 'crypto';
 import axios from 'axios';
 import { isCloudModeEnabled, useCloudContextManager } from '../../utils/CloudContextManager';
+import { addConnectionToDB } from '../../utils/db_helpers';
 
 type GetAuthorizationURIBody = {
     provider: string;
@@ -127,6 +128,7 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
 
     
     let tokenResponse;
+    let connectionExpiryDate: Date;
     if (provider === 'jira') {
         tokenResponse = await axios.post('https://auth.atlassian.com/oauth/token', {
             grant_type: 'authorization_code',
@@ -135,6 +137,9 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
             client_secret,
             redirect_uri,
         });
+        // Set expiration to 364 days from now (1 year minus 1 day)
+        const expiryDate = new Date(Date.now() + 364 * 24 * 60 * 60 * 1000);
+        connectionExpiryDate = expiryDate;
     }
     else {
         res.status(400).json({ error: 'Invalid provider' });
@@ -159,7 +164,16 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
     // Add to juncture-core.Connection(connection_id, refresh_token, expires_at, created_at, last_updated)
     const connection_id = crypto.randomUUID();
     if (!isCloudModeEnabled()) {
-        // DRIZZLE LOGIC TO ADD CONNECTION TO DB
+        const success = await addConnectionToDB(
+            connection_id,
+            external_id,
+            refreshToken,
+            connectionExpiryDate
+        );
+        if (!success) {
+            res.status(500).json({ error: 'Failed to create connection. Please try again later.' });
+            return;
+        }
     } else {
     // Add to juncture-cloud.ProjectConnectionMap(project_id, external_id, provider, connection_id)
         if (!juncture_project_id) {
@@ -167,18 +181,28 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
             return;
         }
         const cloudContextManager = useCloudContextManager();
-        const success = await cloudContextManager.addConnection(connection_id, external_id, provider, juncture_project_id);
+        const success = await cloudContextManager.addConnection(
+            connection_id,
+            external_id,
+            provider,
+            juncture_project_id,
+            refreshToken,
+            connectionExpiryDate
+        );
         // addConnection is a SQL transaction, to ensure both succeed --> ACID
         if (!success) {
-            res.status(500).json({ error: 'Failed to link connection to project. Please try again.' });
-
-            // LOGIC TO DELETE THE CONNECTION FROM juncture-core.Connection
-            
+            res.status(500).json({ error: 'Failed to create connection. Please try again later.' });            
             return;
         }
     }
 
-
+    if (!site_redirect_uri) {
+        res.status(200).json({
+            success: true,
+            message: 'Connection created successfully. However, please specify a site_redirect_uri in the request for a better user experience.'
+        });
+        return;
+    }
     res.redirect(site_redirect_uri);
     return;
 }
@@ -211,7 +235,7 @@ async function getOAuthCredentials(provider: string, juncture_public_key?: strin
         client_id = process.env.DEFAULT_JIRA_CLIENT_ID!;
         scopes = process.env.DEFAULT_JIRA_SCOPES!.split(',');
         client_secret = process.env.DEFAULT_JIRA_CLIENT_SECRET!;
-        site_redirect_uri = process.env.DEFAULT_JIRA_SITE_REDIRECT_URI!;
+        site_redirect_uri = process.env.DEFAULT_JIRA_SITE_REDIRECT_URI || '';
     }
 
     return {

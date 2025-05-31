@@ -17,14 +17,16 @@ export interface CloudContextManager {
     getOAuthCredentials: (provider: string, juncturePublicKey: string) => Promise<OAuthCredentials | null>; // returns NULL if credentials don't exist
     
     /**
-     * Used when creating a new connection to link the connection_id to the (project_id, external_id, provider)
+     * Used when creating a new connection to link the connection_id to the (project_id, external_id, provider). Also adds to juncture-core.Connection; this is a transaction
      * @param connectionID 
      * @param externalID 
      * @param provider 
      * @param project_id 
+     * @param refresh_token 
+     * @param expires_at 
      * @returns TRUE if successful, FALSE if not
      */
-    addConnection: (connectionID: string, externalID: string, provider: string, project_id: string) => Promise<boolean>; 
+    addConnection: (connectionID: string, externalID: string, provider: string, project_id: string, refresh_token: string, expires_at: Date) => Promise<boolean>; 
 
 
     /**

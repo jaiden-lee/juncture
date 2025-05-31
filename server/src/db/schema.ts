@@ -8,9 +8,9 @@ export const providerEnum = pgEnum("provider", ["jira"]);
 export const connection = pgTable('connection', {
   connectionId: uuid('connection_id').primaryKey(),
   refreshToken: text('refresh_token').notNull(),
-  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  lastUpdated: timestamp('last_updated', { mode: 'date' }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  lastUpdated: timestamp('last_updated', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 // 2. ConnectionExternalMap table
@@ -27,6 +27,6 @@ export const jiraConnection = pgTable('jira_connection', {
   connectionId: uuid('connection_id').primaryKey().references(() => connection.connectionId, { onDelete: 'cascade' }),
   selectedJiraProjectId: text('selected_jira_project_id').notNull(),
   jiraSiteId: text('jira_site_id').notNull(),
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  lastUpdated: timestamp('last_updated', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  lastUpdated: timestamp('last_updated', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
