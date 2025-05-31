@@ -70,7 +70,7 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
     }
 
     // Store state in redis
-    redis.set(state, JSON.stringify(redis_body), {
+    redis.set(state, redis_body, {
         ex: 600 // 10 minutes
     });
 
@@ -170,16 +170,19 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
  * Verifies the state parameter and extracts stored data
  */
 async function verifyAndExtractState(state: string): Promise<{ external_id: string; juncture_public_key?: string } | { error: string }> {
-    const storedState = await redis.get(state) as string | null;
-    if (!storedState) {
+    try {
+        const storedState = await redis.get(state) as RedisOAuthStateBody;
+        if (!storedState) {
+            return { error: 'Invalid state or expired state. Please try again.' };
+        }
+        return {
+            external_id: storedState.external_id,
+            juncture_public_key: storedState.juncture_public_key
+        };
+    } catch (error) {
+        console.error('Error verifying state:', error);
         return { error: 'Invalid state or expired state. Please try again.' };
     }
-
-    const storedStateBody = JSON.parse(storedState);
-    return {
-        external_id: storedStateBody.external_id,
-        juncture_public_key: storedStateBody.juncture_project_id
-    };
 }
 
 /**
@@ -228,7 +231,7 @@ async function exchangeCodeForTokens(
         
         return { accessToken, refreshToken, expiresIn, connectionExpiryDate };
     } catch (error) {
-        console.error('Error exchanging code for tokens:', error);
+        console.error('Error exchanging code for tokens: ', error);
         return { error: 'Failed to exchange authorization code for tokens' };
     }
 }

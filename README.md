@@ -17,6 +17,7 @@ Juncture is a serverless application that provides deep integrations with hard A
 2. Create a `.env` file in the root directory and add the following variables:
 ```
 PORT=<PORT, i.e. 8000>
+CLOUD_MODE=false # Always leave to false if you are self-hosting
 UPSTASH_REDIS_REST_URL=<UPSTASH_REDIS_REST_URL>
 UPSTASH_REDIS_REST_TOKEN=<UPSTASH_REDIS_REST_TOKEN>
 DATABASE_URL=<POSTGRES_DATABASE_URL>
