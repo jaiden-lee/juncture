@@ -186,6 +186,17 @@ async function verifyAndExtractState(state: string): Promise<{ external_id: stri
     }
 }
 
+
+
+
+
+
+// ----------------------------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// ----------------------------------------------------------------------------------------------
+
+
+
 /**
  * Exchanges authorization code for access and refresh tokens
  */
