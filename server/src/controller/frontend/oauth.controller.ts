@@ -31,6 +31,12 @@ type GetOAuthCredentialsResponse = {
     error: string;
 }
 
+type TokenResponse = {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+}
+
 /**
  * 
  * @req provider The provider is the name of the provider (i.e. 'jira')
@@ -95,7 +101,7 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
  * @url_param provider The provider is the name of the provider (i.e. 'jira')
  * @query_param code The authorization code (used to exchange for access token and refresh token)
  * @query_param state The state (used to verify the request)
- * @returns 
+ * @returns JSON response if site_redirect_uri is not specified, otherwise redirects to site_redirect_uri
  */
 export async function authorizationCallback(req: Request<{ provider: string }, {}, {}, OAuthCallbackQuery>, res: Response): Promise<void> {
     const { code, state } = req.query;
@@ -106,63 +112,148 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
         return;
     }
 
-    // Verify state
-    const storedState = await redis.get(state) as string | null;
-    if (!storedState) {
-        res.status(400).json({ error: 'Invalid state or expired state. Please try again.' });
+    // Verify state and extract stored data
+    const stateData = await verifyAndExtractState(state);
+    if ('error' in stateData) {
+        res.status(400).json({ error: stateData.error });
         return;
     }
-
-    const storedStateBody = JSON.parse(storedState);
-    const external_id = storedStateBody.external_id;
-    const juncture_public_key = storedStateBody.juncture_project_id;
+    
+    const { external_id, juncture_public_key } = stateData;
 
     // Get OAuth credentials
-    const redirect_uri = process.env.DEFAULT_JIRA_REDIRECT_URI!;
     const credentials = await getOAuthCredentials(provider, juncture_public_key);
     if ('error' in credentials) {
         res.status(400).json(credentials);
         return;
     }
-    const { client_id, client_secret, site_redirect_uri, juncture_project_id } = credentials;
+    
+    // Exchange authorization code for tokens
+    const tokenResult = await exchangeCodeForTokens(provider, code, credentials);
+    if ('error' in tokenResult) {
+        res.status(400).json({ error: tokenResult.error });
+        return;
+    }
+    
+    const { accessToken, refreshToken, expiresIn, connectionExpiryDate } = tokenResult;
 
+    // Store access token in redis (no need to await)
+    storeAccessToken(accessToken, expiresIn);
+    
+    // Create connection in database
+    const connectionResult = await createConnection(
+        provider, 
+        external_id, 
+        refreshToken, 
+        connectionExpiryDate, 
+        credentials.juncture_project_id
+    );
+    
+    if ('error' in connectionResult) {
+        res.status(500).json({ error: connectionResult.error });
+        return;
+    }
+    
+    // Handle response
+    if (credentials.site_redirect_uri === '') {
+        res.status(200).json({
+            success: true,
+            message: 'Connection created successfully. However, please specify a site_redirect_uri in the request for a better user experience.'
+        });
+        return;
+    }
+    
+    res.redirect(credentials.site_redirect_uri);
+}
+
+/**
+ * Verifies the state parameter and extracts stored data
+ */
+async function verifyAndExtractState(state: string): Promise<{ external_id: string; juncture_public_key?: string } | { error: string }> {
+    const storedState = await redis.get(state) as string | null;
+    if (!storedState) {
+        return { error: 'Invalid state or expired state. Please try again.' };
+    }
+
+    const storedStateBody = JSON.parse(storedState);
+    return {
+        external_id: storedStateBody.external_id,
+        juncture_public_key: storedStateBody.juncture_project_id
+    };
+}
+
+/**
+ * Exchanges authorization code for access and refresh tokens
+ */
+async function exchangeCodeForTokens(
+    provider: string, 
+    code: string, 
+    credentials: GetOAuthCredentialsResponse
+): Promise<{ accessToken: string; refreshToken: string; expiresIn: number; connectionExpiryDate: Date } | { error: string }> {
+    if ('error' in credentials) {
+        return { error: credentials.error };
+    }
+    
+    const { client_id, client_secret } = credentials;
+    const redirect_uri = process.env.DEFAULT_JIRA_REDIRECT_URI!;
     
     let tokenResponse;
     let connectionExpiryDate: Date;
-    if (provider === 'jira') {
-        tokenResponse = await axios.post('https://auth.atlassian.com/oauth/token', {
-            grant_type: 'authorization_code',
-            code,
-            client_id,
-            client_secret,
-            redirect_uri,
-        });
-        // Set expiration to 364 days from now (1 year minus 1 day)
-        const expiryDate = new Date(Date.now() + 364 * 24 * 60 * 60 * 1000);
-        connectionExpiryDate = expiryDate;
+    
+    try {
+        if (provider === 'jira') {
+            tokenResponse = await axios.post('https://auth.atlassian.com/oauth/token', {
+                grant_type: 'authorization_code',
+                code,
+                client_id,
+                client_secret,
+                redirect_uri,
+            });
+            
+            // Set expiration to 364 days from now (1 year minus 1 day)
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 364);
+            connectionExpiryDate = expiryDate;
+        } else {
+            return { error: 'Invalid provider' };
+        }
+        
+        if (!tokenResponse) {
+            return { error: 'Invalid token response' };
+        }
+        
+        const accessToken = tokenResponse.data.access_token;
+        const refreshToken = tokenResponse.data.refresh_token;
+        const expiresIn = tokenResponse.data.expires_in - 60; // 1 minute buffer
+        
+        return { accessToken, refreshToken, expiresIn, connectionExpiryDate };
+    } catch (error) {
+        console.error('Error exchanging code for tokens:', error);
+        return { error: 'Failed to exchange authorization code for tokens' };
     }
-    else {
-        res.status(400).json({ error: 'Invalid provider' });
-        return;
-    }
+}
 
-    if (!tokenResponse) {
-        res.status(400).json({ error: 'Invalid token response' });
-        return;
-    }
-
-    const accessToken = tokenResponse.data.access_token;
-    const refreshToken = tokenResponse.data.refresh_token;
-    const expiresIn = tokenResponse.data.expires_in - 60; // 1 minute buffer
-
-    // Store access token in redis
-    redis.set(accessToken, '1', {
+/**
+ * Stores the access token in Redis
+ */
+async function storeAccessToken(accessToken: string, expiresIn: number): Promise<void> {
+    await redis.set(accessToken, '1', {
         ex: expiresIn
     });
+}
 
-    
-    // Add to juncture-core.Connection(connection_id, refresh_token, expires_at, created_at, last_updated)
+/**
+ * Creates a connection in the database
+ */
+async function createConnection(
+    provider: string,
+    external_id: string,
+    refreshToken: string,
+    connectionExpiryDate: Date,
+    juncture_project_id?: string
+): Promise<{ connection_id: string } | { error: string }> {
     const connection_id = crypto.randomUUID();
+    
     if (!isCloudModeEnabled()) {
         const success = await addConnectionToDB(
             connection_id,
@@ -170,16 +261,16 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
             refreshToken,
             connectionExpiryDate
         );
+        
         if (!success) {
-            res.status(500).json({ error: 'Failed to create connection. Please try again later.' });
-            return;
+            return { error: 'Failed to create connection. Please try again later.' };
         }
     } else {
-    // Add to juncture-cloud.ProjectConnectionMap(project_id, external_id, provider, connection_id)
+        // Add to juncture-cloud.ProjectConnectionMap
         if (!juncture_project_id) {
-            res.status(400).json({ error: 'Juncture project ID is required' });
-            return;
+            return { error: 'Juncture project ID is required' };
         }
+        
         const cloudContextManager = useCloudContextManager();
         const success = await cloudContextManager.addConnection(
             connection_id,
@@ -189,22 +280,13 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
             refreshToken,
             connectionExpiryDate
         );
-        // addConnection is a SQL transaction, to ensure both succeed --> ACID
+        
         if (!success) {
-            res.status(500).json({ error: 'Failed to create connection. Please try again later.' });            
-            return;
+            return { error: 'Failed to create connection. Please try again later.' };
         }
     }
-
-    if (!site_redirect_uri) {
-        res.status(200).json({
-            success: true,
-            message: 'Connection created successfully. However, please specify a site_redirect_uri in the request for a better user experience.'
-        });
-        return;
-    }
-    res.redirect(site_redirect_uri);
-    return;
+    
+    return { connection_id };
 }
 
 
@@ -246,7 +328,3 @@ async function getOAuthCredentials(provider: string, juncture_public_key?: strin
         juncture_project_id
     }
 }
-    
-
-
-
