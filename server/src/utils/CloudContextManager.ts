@@ -32,7 +32,7 @@ export interface CloudContextManager {
 
     updateConnection: (connectionID: string, refresh_token: string, expires_at: Date) => Promise<boolean>;
 
-    getConnectionID: (externalID: string, provider: providerEnumType) => Promise<string | null>;
+    getConnectionID: (externalID: string, provider: providerEnumType, project_id: string) => Promise<string | null>;
     /**
      * Used to verify the juncture public key is valid
      * @param junctureSecretKey 

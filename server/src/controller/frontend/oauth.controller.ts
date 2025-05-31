@@ -297,7 +297,7 @@ async function createConnection(
         }
         
         const cloudContextManager = useCloudContextManager();
-        let connection_id = await cloudContextManager.getConnectionID(external_id, provider);
+        let connection_id = await cloudContextManager.getConnectionID(external_id, provider, juncture_project_id);
         if (connection_id) {
             const success = await cloudContextManager.updateConnection(
                 connection_id,
