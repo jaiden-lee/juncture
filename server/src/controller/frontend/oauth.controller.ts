@@ -3,10 +3,11 @@ import redis from '../../utils/redis';
 import crypto from 'crypto';
 import axios from 'axios';
 import { isCloudModeEnabled, useCloudContextManager } from '../../utils/CloudContextManager';
-import { addConnectionToDB } from '../../utils/db_helpers';
+import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../utils/db_helpers';
+import { providerEnumType } from '../../db/schema';
 
 type GetAuthorizationURIBody = {
-    provider: string;
+    provider: providerEnumType;
     juncture_public_key?: string;
     external_id: string;
 }
@@ -103,7 +104,7 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
  * @query_param state The state (used to verify the request)
  * @returns JSON response if site_redirect_uri is not specified, otherwise redirects to site_redirect_uri
  */
-export async function authorizationCallback(req: Request<{ provider: string }, {}, {}, OAuthCallbackQuery>, res: Response): Promise<void> {
+export async function authorizationCallback(req: Request<{ provider: providerEnumType }, {}, {}, OAuthCallbackQuery>, res: Response): Promise<void> {
     const { code, state } = req.query;
     const { provider } = req.params;
 
@@ -133,12 +134,9 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
     if ('error' in tokenResult) {
         res.status(400).json({ error: tokenResult.error });
         return;
-    }
-    
-    const { accessToken, refreshToken, expiresIn, connectionExpiryDate } = tokenResult;
+    }    
 
-    // Store access token in redis (no need to await)
-    storeAccessToken(accessToken, expiresIn);
+    const { accessToken, refreshToken, expiresIn, connectionExpiryDate } = tokenResult;
     
     // Create connection in database
     const connectionResult = await createConnection(
@@ -153,6 +151,9 @@ export async function authorizationCallback(req: Request<{ provider: string }, {
         res.status(500).json({ error: connectionResult.error });
         return;
     }
+
+    // Store access token in redis (no need to await)
+    storeAccessToken(accessToken, expiresIn);
     
     // Handle response
     if (credentials.site_redirect_uri === '') {
@@ -189,7 +190,7 @@ async function verifyAndExtractState(state: string): Promise<{ external_id: stri
  * Exchanges authorization code for access and refresh tokens
  */
 async function exchangeCodeForTokens(
-    provider: string, 
+    provider: providerEnumType, 
     code: string, 
     credentials: GetOAuthCredentialsResponse
 ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number; connectionExpiryDate: Date } | { error: string }> {
@@ -249,25 +250,35 @@ async function storeAccessToken(accessToken: string, expiresIn: number): Promise
  * Creates a connection in the database
  */
 async function createConnection(
-    provider: string,
+    provider: providerEnumType,
     external_id: string,
     refreshToken: string,
     connectionExpiryDate: Date,
     juncture_project_id?: string
-): Promise<{ connection_id: string } | { error: string }> {
-    const connection_id = crypto.randomUUID();
-    
+): Promise<{ connection_id: string } | { error: string }> {    
     if (!isCloudModeEnabled()) {
+        let connection_id = await getConnectionID(external_id, provider);
+        if (connection_id) {
+            const success = await updateConnectionInDB(connection_id, refreshToken, connectionExpiryDate);
+            if (!success) {
+                return { error: 'Failed to update connection. Please try again later.' };
+            }
+            return { connection_id };
+        }
+
+        connection_id = crypto.randomUUID();
         const success = await addConnectionToDB(
             connection_id,
             external_id,
             refreshToken,
-            connectionExpiryDate
+            connectionExpiryDate,
+            provider
         );
         
         if (!success) {
             return { error: 'Failed to create connection. Please try again later.' };
         }
+        return { connection_id };
     } else {
         // Add to juncture-cloud.ProjectConnectionMap
         if (!juncture_project_id) {
@@ -275,6 +286,20 @@ async function createConnection(
         }
         
         const cloudContextManager = useCloudContextManager();
+        let connection_id = await cloudContextManager.getConnectionID(external_id, provider);
+        if (connection_id) {
+            const success = await cloudContextManager.updateConnection(
+                connection_id,
+                refreshToken,
+                connectionExpiryDate
+            );
+            if (!success) {
+                return { error: 'Failed to update connection. Please try again later.' };
+            }
+            return { connection_id };
+        }
+        
+        connection_id = crypto.randomUUID();
         const success = await cloudContextManager.addConnection(
             connection_id,
             external_id,
@@ -287,13 +312,13 @@ async function createConnection(
         if (!success) {
             return { error: 'Failed to create connection. Please try again later.' };
         }
+        return { connection_id };
     }
     
-    return { connection_id };
 }
 
 
-async function getOAuthCredentials(provider: string, juncture_public_key?: string): Promise<GetOAuthCredentialsResponse> {
+async function getOAuthCredentials(provider: providerEnumType, juncture_public_key?: string): Promise<GetOAuthCredentialsResponse> {
     let client_id: string;
     let client_secret: string;
     let scopes: string[];

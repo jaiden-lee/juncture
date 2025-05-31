@@ -4,7 +4,7 @@ import { pgSchema } from "drizzle-orm/pg-core"
 export const junctureCoreSchema = pgSchema('juncture-core');
 
 export const providerEnum = junctureCoreSchema.enum("provider", ["jira"]);
-
+export type providerEnumType = "jira";
 
 
 // 1. Connection table

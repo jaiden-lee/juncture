@@ -1,3 +1,5 @@
+import { providerEnumType } from "../db/schema";
+
 export type OAuthCredentials = {
     junctureProjectID: string;
     clientID: string;
@@ -14,7 +16,7 @@ export interface CloudContextManager {
      * @param juncturePublicKey 
      * @returns NULL if credentials not found in DB, otherwise return credentials
      */
-    getOAuthCredentials: (provider: string, juncturePublicKey: string) => Promise<OAuthCredentials | null>; // returns NULL if credentials don't exist
+    getOAuthCredentials: (provider: providerEnumType, juncturePublicKey: string) => Promise<OAuthCredentials | null>; // returns NULL if credentials don't exist
     
     /**
      * Used when creating a new connection to link the connection_id to the (project_id, external_id, provider). Also adds to juncture-core.Connection; this is a transaction
@@ -26,9 +28,11 @@ export interface CloudContextManager {
      * @param expires_at 
      * @returns TRUE if successful, FALSE if not
      */
-    addConnection: (connectionID: string, externalID: string, provider: string, project_id: string, refresh_token: string, expires_at: Date) => Promise<boolean>; 
+    addConnection: (connectionID: string, externalID: string, provider: providerEnumType, project_id: string, refresh_token: string, expires_at: Date) => Promise<boolean>; 
 
+    updateConnection: (connectionID: string, refresh_token: string, expires_at: Date) => Promise<boolean>;
 
+    getConnectionID: (externalID: string, provider: providerEnumType) => Promise<string | null>;
     /**
      * Used to verify the juncture public key is valid
      * @param junctureSecretKey 
