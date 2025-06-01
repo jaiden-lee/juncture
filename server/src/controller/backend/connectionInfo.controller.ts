@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { providerEnumType } from '../../db/schema';
+import { providerEnumType, providerEnum } from '../../db/schema';
 import { getConnectionIDFromSecretKey } from '../../utils/secret_key_helpers';
 import { getDb } from '../../db';
 import { eq } from 'drizzle-orm';
@@ -26,6 +26,12 @@ type CheckConnectionStatusResponse = {
  */
 export async function checkConnectionStatus(req: Request<{}, {}, CheckConnectionStatusBody>, res: Response<CheckConnectionStatusResponse>) {
     const { external_id, provider } = req.body;
+
+    if (!providerEnum.enumValues.includes(provider)) {
+        res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
+        return;
+    }
+
     
     const { connectionId, error } = await getConnectionIDFromSecretKey(req, external_id, provider);
     if (!connectionId) {

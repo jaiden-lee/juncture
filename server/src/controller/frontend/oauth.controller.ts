@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import axios from 'axios';
 import { isCloudModeEnabled, useCloudContextManager } from '../../utils/CloudContextManager';
 import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../utils/db_helpers';
-import { providerEnumType } from '../../db/schema';
+import { providerEnumType, providerEnum } from '../../db/schema';
 
 type GetAuthorizationURIBody = {
     provider: providerEnumType;
@@ -47,6 +47,11 @@ type TokenResponse = {
  */
 export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
     let { provider, juncture_public_key, external_id } = req.body;
+
+    if (!providerEnum.enumValues.includes(provider)) {
+        res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
+        return;
+    }
 
     const redirect_uri = process.env.DEFAULT_JIRA_REDIRECT_URI!;
 
@@ -107,6 +112,11 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
 export async function authorizationCallback(req: Request<{ provider: providerEnumType }, {}, {}, OAuthCallbackQuery>, res: Response): Promise<void> {
     const { code, state } = req.query;
     const { provider } = req.params;
+
+    if (!providerEnum.enumValues.includes(provider)) {
+        res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
+        return;
+    }
 
     if (!code || !state) {
         res.status(400).json({ error: 'Invalid request' });

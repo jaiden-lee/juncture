@@ -21,13 +21,14 @@ CLOUD_MODE=false # Always leave to false if you are self-hosting
 UPSTASH_REDIS_REST_URL=<UPSTASH_REDIS_REST_URL>
 UPSTASH_REDIS_REST_TOKEN=<UPSTASH_REDIS_REST_TOKEN>
 DATABASE_URL=<POSTGRES_DATABASE_URL>
+JUNCTURE_SECRET_KEY=<create your own secret key and provide it here>
 
 
 # Jira (if self-hosting, provide your own credentials)
 DEFAULT_JIRA_CLIENT_ID=<JIRA_CLIENT_ID>
 DEFAULT_JIRA_CLIENT_SECRET=<JIRA_CLIENT_SECRET>
 DEFAULT_JIRA_SCOPES=<JIRA_SCOPES>
-DEFAULT_JIRA_REDIRECT_URI=[API_BASE_URL]/api/oauth/authorization-callback
+DEFAULT_JIRA_REDIRECT_URI=[API_BASE_URL]api/frontend/oauth/authorization-callback/jira
 DEFAULT_JIRA_SITE_REDIRECT_URI=<URL OF YOUR SITE>
 ```
 3. Run `npm run dev` to start the server.
