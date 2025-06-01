@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
 import { providerEnumType, providerEnum } from '../../db/schema';
 import { getConnectionIDFromSecretKey } from '../../utils/secret_key_helpers';
-import { getDb } from '../../db';
-import { eq } from 'drizzle-orm';
-import { connection } from '../../db/schema';
+import { getConnectionDetails } from '../../utils/connection_db_helpers';
 
 type CheckConnectionStatusBody = {
   external_id: string;
@@ -39,9 +37,8 @@ export async function checkConnectionStatus(req: Request<{}, {}, CheckConnection
         return;
     }
 
-    const drizzle = getDb();
-    const connectionDetails = await drizzle.select().from(connection).where(eq(connection.connectionId, connectionId)).limit(1);
-    if (connectionDetails.length === 0) {
+    const connectionDetails = await getConnectionDetails(connectionId);
+    if (!connectionDetails) {
         res.status(200).json({ 
             exists: false, 
             isInvalid: false 
@@ -49,14 +46,13 @@ export async function checkConnectionStatus(req: Request<{}, {}, CheckConnection
         return;
     }
 
-    const connectionDetail = connectionDetails[0];
-    const invalidRefreshToken = connectionDetail.invalidRefreshToken;
-    const isInvalidated = connectionDetail.expiresAt < new Date() || invalidRefreshToken;
+    const invalidRefreshToken = connectionDetails.invalidRefreshToken;
+    const isInvalidated = connectionDetails.expiresAt < new Date() || invalidRefreshToken;
     res.status(200).json(
         {
             exists: true,
             isInvalid: isInvalidated,
-            expiresAt: connectionDetail.expiresAt
+            expiresAt: connectionDetails.expiresAt
         }
     );
     return;
@@ -99,14 +95,13 @@ export async function getConnectionCredentials(req: Request<{}, {}, GetConnectio
         return;
     }
 
-    const drizzle = getDb();
-    const connectionDetails = await drizzle.select().from(connection).where(eq(connection.connectionId, connectionId)).limit(1);
-    if (connectionDetails.length === 0) {
+    const connectionDetails = await getConnectionDetails(connectionId);
+    if (!connectionDetails) {
         res.status(404).json({ error: 'Connection not found' });
         return;
     }
 
-    const connectionDetail = connectionDetails[0];
+    const connectionDetail = connectionDetails;
     const refreshToken = connectionDetail.refreshToken;
     const expiresAt = connectionDetail.expiresAt;
     const isInvalid = connectionDetail.invalidRefreshToken;

@@ -3,7 +3,7 @@ import redis from '../../utils/redis';
 import crypto from 'crypto';
 import axios from 'axios';
 import { isCloudModeEnabled, useCloudContextManager } from '../../utils/CloudContextManager';
-import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../utils/db_helpers';
+import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../utils/connection_db_helpers';
 import { providerEnumType, providerEnum } from '../../db/schema';
 
 type GetAuthorizationURIBody = {
