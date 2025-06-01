@@ -50,7 +50,8 @@ export async function checkConnectionStatus(req: Request<{}, {}, CheckConnection
     }
 
     const connectionDetail = connectionDetails[0];
-    const isExpired = connectionDetail.expiresAt < new Date();
+    const invalidRefreshToken = connectionDetail.invalidRefreshToken;
+    const isExpired = connectionDetail.expiresAt < new Date() || invalidRefreshToken;
     res.status(200).json(
         {
             exists: true,

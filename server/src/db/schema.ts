@@ -1,4 +1,4 @@
-import { text, timestamp, primaryKey, uuid } from "drizzle-orm/pg-core";
+import { text, timestamp, primaryKey, uuid, boolean } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core"
 
 export const junctureCoreSchema = pgSchema('juncture-core');
@@ -14,6 +14,7 @@ export const connection = junctureCoreSchema.table('connection', {
   expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   lastUpdated: timestamp('last_updated', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  invalidRefreshToken: boolean('invalid_refresh_token').notNull().default(false), // Set to true if the refresh attempt is rejected
 });
 
 // 2. ConnectionExternalMap table

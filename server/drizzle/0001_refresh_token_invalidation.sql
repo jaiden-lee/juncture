@@ -1,0 +1,1 @@
+ALTER TABLE "juncture-core"."connection" ADD COLUMN "invalid_refresh_token" boolean DEFAULT false NOT NULL;
