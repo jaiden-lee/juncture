@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { checkConnectionStatus, getConnectionCredentials } from '../../controller/backend/connectionInfo.controller';
+import { checkConnectionStatus, getConnectionCredentials, getAccessToken } from '../../controller/backend/connectionInfo.controller';
 
 /**
  * Creates a router for connection info endpoints
@@ -13,6 +13,9 @@ export default function createConnectionInfoRouter() {
 
     // POST /api/backend/get-connection-credentials - Get connection credentials
     router.post('/get-connection-credentials', getConnectionCredentials);
+
+    // POST /api/backend/get-access-token - Get access token
+    router.post('/get-access-token', getAccessToken);
     
     return router;
 }
