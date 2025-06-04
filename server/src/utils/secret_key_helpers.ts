@@ -13,6 +13,7 @@ export type verifySecretKeyResponse = {
 export type getConnectionIDFromSecretKeyResponse = {
     connectionId?: string;
     error?: string;
+    projectId?: string;
 }
 
 export async function verifySecretKey(req: Request): Promise<verifySecretKeyResponse> {

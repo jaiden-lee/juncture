@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { providerEnumType, providerEnum } from '../../db/schema';
 import { getConnectionIDFromSecretKey } from '../../utils/secret_key_helpers';
 import { getConnectionDetails } from '../../utils/connection_db_helpers';
+import { getAccessTokenHelper } from '../../utils/credential_helpers';
 
 type CheckConnectionStatusBody = {
   external_id: string;
@@ -109,6 +110,57 @@ export async function getConnectionCredentials(req: Request<{}, {}, GetConnectio
         refreshToken,
         expiresAt,
         isInvalid
+    });
+    return;
+}
+
+
+
+
+
+
+type GetAccessTokenBody = {
+    external_id: string;
+    provider: providerEnumType;
+}
+
+type GetAccessTokenResponse = {
+    accessToken: string;
+    expiresAt: Date;
+} | {
+    error: string;
+}
+
+
+/**
+ * Use this method to retrieve the actual access token. This method does not retrieve the refresh token.
+ * This access_token may expire at any time, so call this method right before you need to make an API call.
+ * @param req.body.external_id - The external ID of the connection
+ * @param req.body.provider - The provider (e.g., 'jira')
+ * @param req.headers.authorization - Bearer token containing the juncture_secret_key
+ */
+export async function getAccessToken(req: Request<{}, {}, GetAccessTokenBody>, res: Response<GetAccessTokenResponse>) {
+    const {external_id, provider} = req.body;
+
+    if (!providerEnum.enumValues.includes(provider)) {
+        res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
+        return;
+    }
+
+    const { connectionId, error, projectId } = await getConnectionIDFromSecretKey(req, external_id, provider);
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, provider, projectId);
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+    res.status(200).json({
+        accessToken: accessTokenResult.accessToken,
+        expiresAt: new Date(Date.now() + accessTokenResult.expiresIn * 1000)
     });
     return;
 }

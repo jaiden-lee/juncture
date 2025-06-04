@@ -5,6 +5,8 @@ import axios from 'axios';
 import { isCloudModeEnabled, useCloudContextManager } from '../../utils/CloudContextManager';
 import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../utils/connection_db_helpers';
 import { providerEnumType, providerEnum } from '../../db/schema';
+import { storeAccessTokenInRedis } from '../../utils/credential_helpers';
+import { getOAuthCredentials, GetOAuthCredentialsResponse } from '../../utils/oauth_helpers';
 
 type GetAuthorizationURIBody = {
     provider: providerEnumType;
@@ -22,15 +24,7 @@ type RedisOAuthStateBody = {
     juncture_public_key?: string;
 }    
 
-type GetOAuthCredentialsResponse = {
-    client_id: string;
-    client_secret: string;
-    scopes: string[];
-    site_redirect_uri: string;
-    juncture_project_id?: string;
-} | {
-    error: string;
-}
+
 
 type TokenResponse = {
     access_token: string;
@@ -55,7 +49,11 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
 
     const redirect_uri = process.env.DEFAULT_JIRA_REDIRECT_URI!;
 
-    const credentials = await getOAuthCredentials(provider, juncture_public_key);
+    let options = undefined;
+    if (juncture_public_key) {
+        options = { juncture_public_key };
+    }
+    const credentials = await getOAuthCredentials(provider, options);
     if ('error' in credentials) {
         res.status(400).json(credentials);
         return;
@@ -133,7 +131,11 @@ export async function authorizationCallback(req: Request<{ provider: providerEnu
     const { external_id, juncture_public_key } = stateData;
 
     // Get OAuth credentials
-    const credentials = await getOAuthCredentials(provider, juncture_public_key);
+    let options = undefined;
+    if (juncture_public_key) {
+        options = { juncture_public_key };
+    }
+    const credentials = await getOAuthCredentials(provider, options);
     if ('error' in credentials) {
         res.status(400).json(credentials);
         return;
@@ -163,7 +165,7 @@ export async function authorizationCallback(req: Request<{ provider: providerEnu
     }
 
     // Store access token in redis (no need to await)
-    storeAccessToken(accessToken, expiresIn);
+    storeAccessTokenInRedis(accessToken, expiresIn, connectionResult.connection_id);
     
     // Handle response
     if (credentials.site_redirect_uri === '') {
@@ -259,15 +261,6 @@ async function exchangeCodeForTokens(
 }
 
 /**
- * Stores the access token in Redis
- */
-async function storeAccessToken(accessToken: string, expiresIn: number): Promise<void> {
-    await redis.set(accessToken, '1', {
-        ex: expiresIn
-    });
-}
-
-/**
  * Creates a connection in the database
  */
 async function createConnection(
@@ -336,44 +329,4 @@ async function createConnection(
         return { connection_id };
     }
     
-}
-
-
-async function getOAuthCredentials(provider: providerEnumType, juncture_public_key?: string): Promise<GetOAuthCredentialsResponse> {
-    let client_id: string;
-    let client_secret: string;
-    let scopes: string[];
-    let site_redirect_uri: string;
-    let juncture_project_id: string | undefined = undefined;
-
-    // Only relevant for Juncture-Cloud, not for OSS
-    if (isCloudModeEnabled()) {
-        if (!juncture_public_key) {
-            return { error: 'Juncture public key is required' };
-        }
-        const cloudContextManager = useCloudContextManager();
-        const credentials = await cloudContextManager.getOAuthCredentials(provider, juncture_public_key!);
-        if (!credentials) {
-            return { error: 'Invalid juncture public key' };
-        }
-        client_id = credentials.clientID;
-        scopes = credentials.scopes;
-        juncture_project_id = credentials.junctureProjectID;
-        client_secret = credentials.clientSecret;
-        site_redirect_uri = credentials.siteRedirectURI;
-    } else {
-        // For OSS, provide own credentials in .env file
-        client_id = process.env.DEFAULT_JIRA_CLIENT_ID!;
-        scopes = process.env.DEFAULT_JIRA_SCOPES!.split(',');
-        client_secret = process.env.DEFAULT_JIRA_CLIENT_SECRET!;
-        site_redirect_uri = process.env.DEFAULT_JIRA_SITE_REDIRECT_URI || '';
-    }
-
-    return {
-        client_id,
-        client_secret,
-        scopes,
-        site_redirect_uri,
-        juncture_project_id
-    }
 }
