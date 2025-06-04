@@ -114,7 +114,8 @@ export async function updateConnectionInDB(connection_id: string, refresh_token:
         }).where(eq(connection.connectionId, connection_id)).returning();
 
         // Invalidate the cache for this connection
-        await invalidateConnectionCache(connection_id);
+        // await invalidateConnectionCache(connection_id);
+        // no need to invalidate the cache since the cache entry is updated automatically if successful
         
         // Update the cache with new data if the update was successful
         if (result.length > 0) {
@@ -148,7 +149,8 @@ export async function updateConnectionInvalidFlag(connection_id: string, isInval
         }).where(eq(connection.connectionId, connection_id)).returning();
 
         // Invalidate the cache for this connection
-        await invalidateConnectionCache(connection_id);
+        // await invalidateConnectionCache(connection_id);
+        // no need to invalidate the cache since the cache entry is updated automatically if successful
         
         // Update the cache with new data if the update was successful
         if (result.length > 0) {

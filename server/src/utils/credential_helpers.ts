@@ -35,6 +35,11 @@ export async function getAccessTokenFromRedis(connectionId: string): Promise<Get
     };
 }
 
+export async function invalidateAccessTokenInRedis(connectionId: string): Promise<void> {
+    const key = `access_token:${connectionId}`;
+    await redis.del(key);
+}
+
 export async function getNewAccessTokenFromConnection(connectionId: string, provider: providerEnumType, projectId?: string): Promise<GetNewAccessTokenResponse> {
     const connectionDetails = await getConnectionDetails(connectionId);
     if (!connectionDetails) {
