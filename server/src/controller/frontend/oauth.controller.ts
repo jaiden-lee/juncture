@@ -42,6 +42,11 @@ type TokenResponse = {
 export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
     let { provider, juncture_public_key, external_id } = req.body;
 
+    if (!provider || !external_id) {
+        res.status(400).json({ error: 'Missing provider or external_id' });
+        return;
+    }
+
     if (!providerEnum.enumValues.includes(provider)) {
         res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
         return;
@@ -111,7 +116,7 @@ export async function authorizationCallback(req: Request<{ provider: providerEnu
     const { code, state } = req.query;
     const { provider } = req.params;
 
-    if (!providerEnum.enumValues.includes(provider)) {
+    if (!provider || !providerEnum.enumValues.includes(provider)) {
         res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
         return;
     }
