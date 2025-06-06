@@ -6,6 +6,7 @@ import { isCloudModeEnabled, setCloudContextManager, CloudContextManager } from 
 import { Pool } from 'pg';
 import { initCoreDb } from './db';
 import jiraRouter from './routes/backend/jira.route';
+import finalizeJiraConnectionRouter from './routes/frontend/finalizeJiraConnection.route';
 
 export function createJunctureApp(dbPool: Pool, cloudContextManager?: CloudContextManager) {
     const app = express();
@@ -24,6 +25,9 @@ export function createJunctureApp(dbPool: Pool, cloudContextManager?: CloudConte
     initCoreDb(dbPool);
 
     app.use('/api/frontend/oauth', oauthRouter());
+    app.use('/api/frontend/finalize-connection/jira', finalizeJiraConnectionRouter());
+
+
     app.use('/api/backend/connection-info', connectionInfoRouter());
     app.use('/api/backend/integration-helpers/jira', jiraRouter());
 

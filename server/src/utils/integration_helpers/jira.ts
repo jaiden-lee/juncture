@@ -1,5 +1,0 @@
-
-
-export async function setJiraSiteID() {
-    
-}
