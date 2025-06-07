@@ -7,6 +7,8 @@ import { addConnectionToDB, getConnectionID, updateConnectionInDB } from '../../
 import { providerEnumType, providerEnum } from '../../db/schema';
 import { storeAccessTokenInRedis } from '../../utils/credential_helpers';
 import { getOAuthCredentials, GetOAuthCredentialsResponse } from '../../utils/oauth_helpers';
+import { generateTemporaryConnectionCode } from '../../utils/integration_helpers/general';
+import { ConnectionCodeCacheBody } from '../../utils/integration_helpers/general';
 
 type GetAuthorizationURIBody = {
     provider: providerEnumType;
@@ -156,32 +158,45 @@ export async function authorizationCallback(req: Request<{ provider: providerEnu
     const { accessToken, refreshToken, expiresIn, connectionExpiryDate } = tokenResult;
     
     // Create connection in database
-    const connectionResult = await createConnection(
-        provider, 
-        external_id, 
-        refreshToken, 
-        connectionExpiryDate, 
-        credentials.juncture_project_id
-    );
-    
-    if ('error' in connectionResult) {
-        res.status(500).json({ error: connectionResult.error });
-        return;
+    let connection_id = await getConnectionID(external_id, provider);
+    let is_new_connection = false;
+    // new connection, create the UUID
+    if (!connection_id) {
+        connection_id = crypto.randomUUID();
+        is_new_connection = true;
     }
+    // const connectionResult = await createConnection(
+    //     connection_id,
+    //     provider, 
+    //     external_id, 
+    //     refreshToken, 
+    //     connectionExpiryDate, 
+    //     credentials.juncture_project_id
+    // );
+    
+    // if ('error' in connectionResult) {
+    //     res.status(500).json({ error: connectionResult.error });
+    //     return;
+    // }
 
     // Store access token in redis (no need to await)
-    storeAccessTokenInRedis(accessToken, expiresIn, connectionResult.connection_id);
+    storeAccessTokenInRedis(accessToken, expiresIn, connection_id);
     
-    // Handle response
-    if (credentials.site_redirect_uri === '') {
-        res.status(200).json({
-            success: true,
-            message: 'Connection created successfully. However, please specify a site_redirect_uri in the request for a better user experience.'
-        });
-        return;
+    const connectionCodeCacheBody: ConnectionCodeCacheBody = {
+        connection_id,
+        provider,
+        external_id,
+        refresh_token: refreshToken,
+        connection_expiry_date: connectionExpiryDate,
+        juncture_project_id: credentials.juncture_project_id,
+        is_new_connection
     }
-    
-    res.redirect(credentials.site_redirect_uri);
+
+    const connection_code = await generateTemporaryConnectionCode(provider, connectionCodeCacheBody);
+
+    // Redirect to juncture-frontend to finalize integration
+    res.redirect(`${process.env.JUNCTURE_FRONTEND_URL}/finalize-connection/${provider}/${connection_code}`);
+    return;
 }
 
 /**
@@ -265,73 +280,3 @@ async function exchangeCodeForTokens(
     }
 }
 
-/**
- * Creates a connection in the database
- */
-async function createConnection(
-    provider: providerEnumType,
-    external_id: string,
-    refreshToken: string,
-    connectionExpiryDate: Date,
-    juncture_project_id?: string
-): Promise<{ connection_id: string } | { error: string }> {    
-    if (!isCloudModeEnabled()) {
-        let connection_id = await getConnectionID(external_id, provider);
-        if (connection_id) {
-            const success = await updateConnectionInDB(connection_id, refreshToken, connectionExpiryDate);
-            if (!success) {
-                return { error: 'Failed to update connection. Please try again later.' };
-            }
-            return { connection_id };
-        }
-
-        connection_id = crypto.randomUUID();
-        const success = await addConnectionToDB(
-            connection_id,
-            external_id,
-            refreshToken,
-            connectionExpiryDate,
-            provider
-        );
-        
-        if (!success) {
-            return { error: 'Failed to create connection. Please try again later.' };
-        }
-        return { connection_id };
-    } else {
-        // Add to juncture-cloud.ProjectConnectionMap
-        if (!juncture_project_id) {
-            return { error: 'Juncture project ID is required' };
-        }
-        
-        const cloudContextManager = useCloudContextManager();
-        let connection_id = await cloudContextManager.getConnectionID(external_id, provider, juncture_project_id);
-        if (connection_id) {
-            const success = await cloudContextManager.updateConnection(
-                connection_id,
-                refreshToken,
-                connectionExpiryDate
-            );
-            if (!success) {
-                return { error: 'Failed to update connection. Please try again later.' };
-            }
-            return { connection_id };
-        }
-        
-        connection_id = crypto.randomUUID();
-        const success = await cloudContextManager.addConnection(
-            connection_id,
-            external_id,
-            provider,
-            juncture_project_id,
-            refreshToken,
-            connectionExpiryDate
-        );
-        
-        if (!success) {
-            return { error: 'Failed to create connection. Please try again later.' };
-        }
-        return { connection_id };
-    }
-    
-}
