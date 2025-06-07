@@ -95,8 +95,9 @@ export default function Combobox({
                 {items.map((item) => (
                   <CommandItem
                     key={item.value}
-                    value={item.value}
-                    onSelect={handleSelect}
+                    value={item.label} // Use label for search filtering
+                    onSelect={() => handleSelect(item.value)} // But pass value for selection
+                    data-value={item.value} // Store value as data attribute
                   >
                     {item.label}
                     <CheckIcon
