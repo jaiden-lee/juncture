@@ -1,5 +1,6 @@
 import { providerEnumType } from "../db/schema";
 import { GetOAuthCredentialsOptions } from "./oauth_helpers";
+import { ExtendTransaction } from "./connection_db_helpers";
 
 export type OAuthCredentials = {
     junctureProjectID: string;
@@ -29,9 +30,9 @@ export interface CloudContextManager {
      * @param expires_at 
      * @returns TRUE if successful, FALSE if not
      */
-    addConnection: (connectionID: string, externalID: string, provider: providerEnumType, project_id: string, refresh_token: string, expires_at: Date) => Promise<boolean>; 
+    addConnection: (connectionID: string, externalID: string, provider: providerEnumType, project_id: string, refresh_token: string, expires_at: Date, extendTransaction?: ExtendTransaction) => Promise<boolean>; 
 
-    updateConnection: (connectionID: string, refresh_token: string, expires_at: Date) => Promise<boolean>;
+    updateConnection: (connectionID: string, refresh_token: string, expires_at: Date, extendTransaction?: ExtendTransaction) => Promise<boolean>;
 
     getConnectionID: (externalID: string, provider: providerEnumType, project_id: string) => Promise<string | null>;
     /**

@@ -1,0 +1,1 @@
+ALTER TABLE "juncture-core"."jira_connection" ALTER COLUMN "selected_jira_project_id" DROP NOT NULL;

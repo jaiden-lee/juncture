@@ -29,7 +29,7 @@ export const connectionExternalMap = junctureCoreSchema.table('connection_extern
 // 3. JiraConnection table
 export const jiraConnection = junctureCoreSchema.table('jira_connection', {
   connectionId: uuid('connection_id').primaryKey().references(() => connection.connectionId, { onDelete: 'cascade' }),
-  selectedJiraProjectId: text('selected_jira_project_id').notNull(),
+  selectedJiraProjectId: text('selected_jira_project_id'),
   jiraSiteId: text('jira_site_id').notNull(),
   createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   lastUpdated: timestamp('last_updated', { mode: 'date', withTimezone: true }).notNull().defaultNow(),

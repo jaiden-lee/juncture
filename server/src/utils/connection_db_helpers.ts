@@ -42,8 +42,10 @@ async function invalidateConnectionCache(connection_id: string): Promise<void> {
     }
 }
 
+
+export type ExtendTransaction = (tx: any) => Promise<void>;
 // Juncture-core uses to add to db. Juncture-cloud extends this function in its own CloudContextManager interface by using it in a sql transaction
-export async function addConnectionToDB(connection_id: string, external_id: string, refresh_token: string, expires_at: Date, provider: providerEnumType): Promise<boolean> {
+export async function addConnectionToDB(connection_id: string, external_id: string, refresh_token: string, expires_at: Date, provider: providerEnumType, extendTransaction?: ExtendTransaction): Promise<boolean> {
     try {
         const drizzle = getDb();
         
@@ -64,6 +66,10 @@ export async function addConnectionToDB(connection_id: string, external_id: stri
                 provider: provider,
                 connectionId: connection_id
             });
+
+            if (extendTransaction) {
+                await extendTransaction(tx);
+            }
             
             return connectionResult;
         });
@@ -102,16 +108,24 @@ export async function addConnectionToDB(connection_id: string, external_id: stri
     }
 }
 
-export async function updateConnectionInDB(connection_id: string, refresh_token: string, expires_at: Date): Promise<boolean> {
+export async function updateConnectionInDB(connection_id: string, refresh_token: string, expires_at: Date, extendTransaction?: ExtendTransaction): Promise<boolean> {
     try {
         const drizzle = getDb();
         
         // Update connection
-        const result = await drizzle.update(connection).set({
-            refreshToken: refresh_token,
-            expiresAt: expires_at,
-            lastUpdated: new Date()
-        }).where(eq(connection.connectionId, connection_id)).returning();
+        const result = await drizzle.transaction(async (tx) => {
+            const updatedConnection = await tx.update(connection).set({
+                refreshToken: refresh_token,
+                expiresAt: expires_at,
+                lastUpdated: new Date()
+            }).where(eq(connection.connectionId, connection_id)).returning();
+
+            if (extendTransaction) {
+                await extendTransaction(tx);
+            }
+
+            return updatedConnection;
+        });
 
         // Invalidate the cache for this connection
         // await invalidateConnectionCache(connection_id);

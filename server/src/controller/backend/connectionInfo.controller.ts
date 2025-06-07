@@ -26,6 +26,11 @@ type CheckConnectionStatusResponse = {
 export async function checkConnectionStatus(req: Request<{}, {}, CheckConnectionStatusBody>, res: Response<CheckConnectionStatusResponse>) {
     const { external_id, provider } = req.body;
 
+    if (!external_id || !provider) {
+        res.status(400).json({ error: 'Missing external_id or provider' });
+        return;
+    }
+
     if (!providerEnum.enumValues.includes(provider)) {
         res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
         return;
@@ -84,6 +89,11 @@ type GetConnectionCredentialsResponse = {
  */
 export async function getConnectionCredentials(req: Request<{}, {}, GetConnectionCredentialsBody>, res: Response<GetConnectionCredentialsResponse>) {
     const {external_id, provider} = req.body;
+
+    if (!external_id || !provider) {
+        res.status(400).json({ error: 'Missing external_id or provider' });
+        return;
+    }
 
     if (!providerEnum.enumValues.includes(provider)) {
         res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
