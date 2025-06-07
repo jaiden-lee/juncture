@@ -15,6 +15,13 @@
       "when": 1748811500674,
       "tag": "0001_refresh_token_invalidation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1749266099608,
+      "tag": "0002_outgoing_mariko_yashida",
+      "breakpoints": true
     }
   ]
 }
