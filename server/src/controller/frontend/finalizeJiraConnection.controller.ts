@@ -93,10 +93,9 @@ export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Re
     // Extends the addConnectionToDB method to add a jiraConnection entry
     // Need to do this since want all to be in the same transaction, yet still want reusable functions
     // so supply a callback function that gets called inside the other transaction
-    let jiraResult: any[] = [];
     const jiraTransaction: ExtendTransaction = async (tx: any) => {
         if (isNewJiraConnectionDetail) {
-            jiraResult = await tx.insert(jiraConnection).values({
+            await tx.insert(jiraConnection).values({
                 connectionId,
                 jiraSiteId: site_id,
                 selectedJiraProjectId: null
@@ -108,7 +107,7 @@ export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Re
     // or a way to "evict" the selectedProject if it is wrong later
     // or maybe I can just add a function here later that checks if the project id is valid
     // either way, I would need some way to ensure it, but I don't have selected project id logic yet, so don't worry about it
-            jiraResult = await tx.update(jiraConnection).set({
+            await tx.update(jiraConnection).set({
                 jiraSiteId: site_id
             }).where(eq(jiraConnection.connectionId, connectionId)).returning();
         }
@@ -133,17 +132,15 @@ export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Re
     }
 
 
-    if (jiraResult?.length > 0) {
-        const jiraDetailsCacheBody = {
-            siteId: site_id,
-            selectedProjectId: jiraResult[0].selectedJiraProjectId ?? null
-        }
+    const jiraDetailsCacheBody = {
+        siteId: site_id,
+        selectedProjectId: "selectedProjectId" in jiraConnectionDetailsResponse ? jiraConnectionDetailsResponse.selectedProjectId : null
+    };
 
-        // no need to await
-        redis.set(getJiraConnectionDetailsCacheKey(connectionId), jiraDetailsCacheBody, {
-            ex: 24*60*60
-        });
-    }
+    // no need to await
+    redis.set(getJiraConnectionDetailsCacheKey(connectionId), jiraDetailsCacheBody, {
+        ex: 24*60*60
+    });
 
     // don't await, don't care about failure
     redis.del(getConnectionCodeCacheKey('jira', connection_code));
