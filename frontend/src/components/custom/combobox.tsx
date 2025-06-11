@@ -31,7 +31,6 @@ type ComboboxProps = {
   emptyMessage?: string
   className?: string
   buttonClassName?: string
-  popoverClassName?: string
   disabled?: boolean
 }
 
@@ -44,7 +43,6 @@ export default function Combobox({
   emptyMessage = "No item found.",
   className,
   buttonClassName,
-  popoverClassName,
   disabled = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)

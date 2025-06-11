@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import Combobox from "@/components/custom/combobox";
 import { useState } from "react";
 import { toast } from "sonner";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useRouter } from "next/router";
 
 type GetJiraSitesProps = {
@@ -40,7 +40,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
         };
     } catch (error) {
         console.error(error);
-        const responseJson = (error as any)?.response?.data;
+        const responseJson = (error as AxiosError<{ error: string }>)?.response?.data;
         if (responseJson && typeof responseJson === 'object' && 'error' in responseJson) {
             return {
                 props: {
@@ -87,7 +87,7 @@ export default function FinalizeJiraConnectionPage(props: GetJiraSitesProps) {
             return;
         } catch (error) {
             console.error(error);
-            const responseJson = (error as any)?.response?.data;
+            const responseJson = (error as AxiosError<{ error: string }>)?.response?.data;
             if (responseJson && typeof responseJson === 'object' && 'error' in responseJson) {
                 toast.error(responseJson.error);
                 return;
