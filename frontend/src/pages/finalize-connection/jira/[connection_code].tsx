@@ -17,11 +17,13 @@ type GetJiraSitesProps = {
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
     const { connection_code } = context.query;
-    const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/get-jira-sites`;
+    const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/fetch-available-sites`;
     
     try {
-        const response = await axios.post(api_url, {
-            connection_code,
+        const response = await axios.get(api_url, {
+            params: {
+                connection_code,
+            },
         });
 
         const data = response.data;
@@ -68,7 +70,7 @@ export default function FinalizeJiraConnectionPage(props: GetJiraSitesProps) {
             return;
         };
 
-        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/set-jira-site`;
+        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/select-jira-site`;
         
         try {
             const response = await axios.post(api_url, {

@@ -11,12 +11,12 @@ import redis from "../../utils/redis";
 import { getConnectionCodeCacheKey } from "../../utils/integration_helpers/general";
 import { getJiraConnectionDetailsCacheKey } from "../../utils/integration_helpers/jira";
 
-type GetJiraSitesBody = {
+type GetJiraSitesQueryParams = {
     connection_code: string;
 }
 
-export async function getJiraSites(req: Request<{}, {}, GetJiraSitesBody>, res: Response) {
-    const { connection_code } = req.body;
+export async function fetchAvailableJiraSites(req: Request<{}, {}, {}, GetJiraSitesQueryParams>, res: Response) {
+    const { connection_code } = req.query;
     
     if (!connection_code) {
         res.status(400).json({ error: 'Missing connection_code' });
@@ -71,7 +71,7 @@ type SetJiraSiteBody = {
     site_id: string;
 }
 
-export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
+export async function selectJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
     const { connection_code, site_id } = req.body;
     
     if (!connection_code || !site_id) {
