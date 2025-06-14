@@ -53,41 +53,18 @@ export async function getJiraConnectionDetails(connectionId: string): Promise<Ji
 
 
 export type CreateJiraConnectionDetailsResponse = {
-    error?: string;
+    error: string;
+} | {
+    success: true;
 }
 
-// export async function createJiraConnectionDetails(connectionId: string, siteId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse>  {
-//     const drizzle = getDb();
-    
-//     const connection = await drizzle.insert(jiraConnection).values({
-//         connectionId,
-//         jiraSiteId: siteId,
-//         selectedJiraProjectId: selectedProjectId ?? null
-//     }).returning();
-    
-//     if (connection.length === 0) {
-//         return {
-//             error: 'Failed to create connection details. Please try again later.'
-//         };
-//     }
-
-//     // no need to await
-//     redis.set(getJiraConnectionDetailsCacheKey(connectionId), {
-//         siteId,
-//         selectedProjectId: selectedProjectId ?? null
-//     });
-    
-//     return {
-//         error: undefined
-//     };
-// }
-
-export async function updateJiraConnectionDetails(connectionId: string, siteId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse> {
+// This method should only be called to update selectedProjectId
+// siteId is only updated during the finalize-connection flow
+export async function updateJiraConnectionDetails(connectionId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse> {
     const drizzle = getDb();
 
     
     const connection = await drizzle.update(jiraConnection).set({
-        jiraSiteId: siteId,
         selectedJiraProjectId: selectedProjectId ?? null
     }).where(eq(jiraConnection.connectionId, connectionId)).returning();
     
@@ -99,13 +76,13 @@ export async function updateJiraConnectionDetails(connectionId: string, siteId: 
 
     // no need to await
     redis.set(getJiraConnectionDetailsCacheKey(connectionId), {
-        siteId,
+        siteId: connection[0].jiraSiteId,
         selectedProjectId: selectedProjectId ?? null
     }, {
         ex: 24*60*60
     });
     
-    return {
-        error: undefined
+    return {    
+        success: true
     };
 }

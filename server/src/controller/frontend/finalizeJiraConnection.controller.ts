@@ -2,7 +2,7 @@ import {Request, Response} from "express";
 import {getConnectionDetailsFromConnectionCode} from "../../utils/integration_helpers/general";
 import { getAccessTokenFromRedis } from "../../utils/credential_helpers";
 import axios from "axios";
-import { getJiraConnectionDetails, updateJiraConnectionDetails } from "../../utils/integration_helpers/jira";
+import { getJiraConnectionDetails } from "../../utils/integration_helpers/jira";
 import { jiraConnection } from "../../db/schema";
 import { createConnection } from "../../utils/integration_helpers/general";
 import { ExtendTransaction } from "../../utils/connection_db_helpers";

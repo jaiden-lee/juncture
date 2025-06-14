@@ -24,14 +24,6 @@ type OAuthCallbackQuery = {
 type RedisOAuthStateBody = {
     external_id: string;
     juncture_public_key?: string;
-}    
-
-
-
-type TokenResponse = {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
 }
 
 /**
@@ -280,4 +272,3 @@ async function exchangeCodeForTokens(
         return { error: 'Failed to exchange authorization code for tokens' };
     }
 }
-

@@ -79,12 +79,17 @@ For example, if a user wants to get a list of all jira tickets, this user will f
 3. Your users will sign in to Jira and choose the site they want to grant your app access to
 4. After signing in, Jira will redirect to `/api/frontend/oauth/authorization-callback/jira?code=...&state=...`, which essentially is used to ensure this authorization was indeed started by Juncture and not some third party, as well as to kick start the connection creation process.
 5. The user will then be redirected to juncture's frontend site (`/frontend`). From here, the user will once again, select the site they would like to integrate with. The reason for this redundancy is specified below.
-6. Afterwards, another API request is sent to `/api/frontend/finalize-connection/jira/set-jira-site`, which will finalize the creation of the connection and add it to the database.
+6. Afterwards, another API request is sent to `/api/frontend/finalize-connection/jira/create-connection`, which will finalize the creation of the connection and add it to the database.
 
 ## Juncture's frontend site and why we have redundant site selection?
 When a user creates a connection with Jira, Jira makes them select a "site" to grant access to, which is essentially an organization if you are unfamiliar with Jira. If a user makes multiple connections with the same Jira app (the one that you create in the Jira developer console) however, all connections have access to the sites that the other connections granted access to (for the same user).
 
 For example, let's say Bob is part of 2 projects: Projectile and Agiler. For Projectile, Bob creates a Jira connection, so he connects to a jira site called "jira-projectile". For Agiler, Bob also creates a Jira connection, so he grants jira access to "jira-agiler". However, based on the way Jira's auth works, the first connection he made with Projectile actually will have access to both "jira-projectile" and "jira-agiler", and same with the connection for Agiler. This is obviously undesirable behavior, so Juncture will have users reselect the site on Juncture's own frontend, so that Juncture knows what site the user actually intended to integrate with.
+
+## What is ExtendTransaction?
+If you're reading through the code for the createConnection helper method or the createJiraConnection method (`/api/frontend/finalize-connection/jira/create-connection`), you'll notice a little ExtendTransaction functionality. The reason this is used is because the createJiraConnection method involves updating 2 tables: connection and jira_connection. The createConnection helper method is supposed to be a generic helper method for all providers (Jira + other providers in the future). The createConnection helper method thus only updates the `connection` table, and instead accepts an optional `ExtendTransaction` function that is run alongside the current DB call inside of a transaction (an atomic operation, so both succeed or both fail). 
+
+This allows createJiraConnection to write a SQL query that creates/updates the jira_connection table, pass it to the createConnection method, and both can get called.
 
 ## Server Documentation
 ### Frontend API
