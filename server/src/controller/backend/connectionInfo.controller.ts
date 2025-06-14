@@ -4,12 +4,12 @@ import { getConnectionIDFromSecretKey } from '../../utils/juncture_key_helpers/s
 import { getConnectionDetails } from '../../utils/connection_db_helpers';
 import { getAccessTokenHelper } from '../../utils/credential_helpers';
 
-type CheckConnectionStatusBody = {
+type CheckConnectionValidityQueryParams = {
   external_id: string;
   provider: providerEnumType;
 }
 
-type CheckConnectionStatusResponse = {
+type CheckConnectionValidityResponse = {
     exists: boolean;
     isInvalid: boolean;
     expiresAt?: Date;
@@ -19,12 +19,12 @@ type CheckConnectionStatusResponse = {
 
 /**
  * Tells the backend if a connection exists and whether or not it is expired
- * @param req.body.external_id - The external ID of the connection
- * @param req.body.provider - The provider (e.g., 'jira')
+ * @param req.query.external_id - The external ID of the connection
+ * @param req.query.provider - The provider (e.g., 'jira')
  * @param req.headers.authorization - Bearer token containing the juncture_secret_key
  */
-export async function checkConnectionStatus(req: Request<{}, {}, CheckConnectionStatusBody>, res: Response<CheckConnectionStatusResponse>) {
-    const { external_id, provider } = req.body;
+export async function checkConnectionValidity(req: Request<{}, {}, {}, CheckConnectionValidityQueryParams>, res: Response<CheckConnectionValidityResponse>) {
+    const { external_id, provider } = req.query;
 
     if (!external_id || !provider) {
         res.status(400).json({ error: 'Missing external_id or provider' });
@@ -66,7 +66,7 @@ export async function checkConnectionStatus(req: Request<{}, {}, CheckConnection
 
 
 
-type GetConnectionCredentialsBody = {
+type GetConnectionCredentialsQueryParams = {
     external_id: string;
     provider: providerEnumType;
 }
@@ -83,12 +83,12 @@ type GetConnectionCredentialsResponse = {
  * Use this method to retrieve the actual refresh token, as well as expiry information. This method does not retrieve the access token.
  * You are discouraged from using this method since Juncture also manages the refresh token and access token, and thus if you manage the refresh token yourself, you may run into conflicts.
  * Rather, it is preferred to fetch the access_token from Juncture instead, and let Juncture manage the refresh token logic.
- * @param req.body.external_id - The external ID of the connection
- * @param req.body.provider - The provider (e.g., 'jira')
+ * @param req.query.external_id - The external ID of the connection
+ * @param req.query.provider - The provider (e.g., 'jira')
  * @param req.headers.authorization - Bearer token containing the juncture_secret_key
  */
-export async function getConnectionCredentials(req: Request<{}, {}, GetConnectionCredentialsBody>, res: Response<GetConnectionCredentialsResponse>) {
-    const {external_id, provider} = req.body;
+export async function getConnectionCredentials(req: Request<{}, {}, {}, GetConnectionCredentialsQueryParams>, res: Response<GetConnectionCredentialsResponse>) {
+    const {external_id, provider} = req.query;
 
     if (!external_id || !provider) {
         res.status(400).json({ error: 'Missing external_id or provider' });
@@ -129,7 +129,7 @@ export async function getConnectionCredentials(req: Request<{}, {}, GetConnectio
 
 
 
-type GetAccessTokenBody = {
+type GetAccessTokenQueryParams = {
     external_id: string;
     provider: providerEnumType;
 }
@@ -145,12 +145,12 @@ type GetAccessTokenResponse = {
 /**
  * Use this method to retrieve the actual access token. This method does not retrieve the refresh token.
  * This access_token may expire at any time, so call this method right before you need to make an API call.
- * @param req.body.external_id - The external ID of the connection
- * @param req.body.provider - The provider (e.g., 'jira')
+ * @param req.query.external_id - The external ID of the connection
+ * @param req.query.provider - The provider (e.g., 'jira')
  * @param req.headers.authorization - Bearer token containing the juncture_secret_key
  */
-export async function getAccessToken(req: Request<{}, {}, GetAccessTokenBody>, res: Response<GetAccessTokenResponse>) {
-    const {external_id, provider} = req.body;
+export async function getAccessToken(req: Request<{}, {}, {}, GetAccessTokenQueryParams>, res: Response<GetAccessTokenResponse>) {
+    const {external_id, provider} = req.query;
 
     if (!providerEnum.enumValues.includes(provider)) {
         res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });

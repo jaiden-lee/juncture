@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { checkConnectionStatus, getConnectionCredentials, getAccessToken } from '../../controller/backend/connectionInfo.controller';
+import { checkConnectionValidity, getConnectionCredentials, getAccessToken } from '../../controller/backend/connectionInfo.controller';
 
 /**
  * Creates a router for connection info endpoints
@@ -8,14 +8,14 @@ import { checkConnectionStatus, getConnectionCredentials, getAccessToken } from 
 export default function createConnectionInfoRouter() {
     const router = Router();
     
-    // POST /api/backend/check-connection-status - Check if a connection exists and whether it's expired
-    router.post('/check-connection-status', checkConnectionStatus);
+    // Check if a connection exists and whether it's expired
+    router.get('/check-connection-validity', checkConnectionValidity);
 
-    // POST /api/backend/get-connection-credentials - Get connection credentials
-    router.post('/get-connection-credentials', getConnectionCredentials);
+    // Get connection credentials
+    router.get('/get-connection-credentials', getConnectionCredentials);
 
-    // POST /api/backend/get-access-token - Get access token
-    router.post('/get-access-token', getAccessToken);
+    // Get access token
+    router.get('/get-access-token', getAccessToken);
     
     return router;
 }
