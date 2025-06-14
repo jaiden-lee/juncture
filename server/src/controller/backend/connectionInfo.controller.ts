@@ -11,8 +11,8 @@ type CheckConnectionValidityQueryParams = {
 
 type CheckConnectionValidityResponse = {
     exists: boolean;
-    isInvalid: boolean;
-    expiresAt?: Date;
+    is_invalid: boolean;
+    expires_at?: Date;
 } | {
     error: string;
 }
@@ -47,7 +47,7 @@ export async function checkConnectionValidity(req: Request<{}, {}, {}, CheckConn
     if (!connectionDetails) {
         res.status(200).json({ 
             exists: false, 
-            isInvalid: false 
+            is_invalid: false 
         });
         return;
     }
@@ -57,8 +57,8 @@ export async function checkConnectionValidity(req: Request<{}, {}, {}, CheckConn
     res.status(200).json(
         {
             exists: true,
-            isInvalid: isInvalidated,
-            expiresAt: connectionDetails.expiresAt
+            is_invalid: isInvalidated,
+            expires_at: connectionDetails.expiresAt
         }
     );
     return;
@@ -72,9 +72,9 @@ type GetConnectionCredentialsQueryParams = {
 }
 
 type GetConnectionCredentialsResponse = {
-    refreshToken: string;
-    expiresAt: Date;
-    isInvalid: boolean;
+    refresh_token: string;
+    expires_at: Date;
+    is_invalid: boolean;
 } | {
     error: string;
 }
@@ -117,9 +117,9 @@ export async function getConnectionCredentials(req: Request<{}, {}, {}, GetConne
     const expiresAt = connectionDetail.expiresAt;
     const isInvalid = connectionDetail.invalidRefreshToken;
     res.status(200).json({
-        refreshToken,
-        expiresAt,
-        isInvalid
+        refresh_token: refreshToken,
+        expires_at: expiresAt,
+        is_invalid: isInvalid
     });
     return;
 }
@@ -135,9 +135,12 @@ type GetAccessTokenQueryParams = {
 }
 
 type GetAccessTokenResponse = {
-    accessToken: string;
-    expiresAt: Date;
+    access_token: string;
+    expires_at: Date;
 } | {
+    error: string;
+} | {
+    needs_reauthorization: boolean;
     error: string;
 }
 
@@ -164,13 +167,17 @@ export async function getAccessToken(req: Request<{}, {}, {}, GetAccessTokenQuer
     }
 
     const accessTokenResult = await getAccessTokenHelper(connectionId, provider, projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
     if ('error' in accessTokenResult) {
         res.status(401).json({ error: accessTokenResult.error });
         return;
     }
     res.status(200).json({
-        accessToken: accessTokenResult.accessToken,
-        expiresAt: new Date(Date.now() + accessTokenResult.expiresIn * 1000)
+        access_token: accessTokenResult.accessToken,
+        expires_at: new Date(Date.now() + accessTokenResult.expiresIn * 1000)
     });
     return;
 }

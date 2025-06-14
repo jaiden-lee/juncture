@@ -103,7 +103,7 @@ HTTP Response 200 if successful:
 }
 ```
 ##### Headers
-- (Optional) x-juncture-public-key: 'Bearer {juncture_public_key}'
+- (Optional) x-juncture-public-key: '{juncture_public_key}'
     - Only pass in this parameter if you are using Juncture-Cloud. The public api key is only used to identify Juncture-cloud projects
 
 ```json
@@ -204,15 +204,235 @@ Specifically, if you would like more detail, this method creates a new entry in 
 
 #### `GET /api/backend/connection-info/check-connection-validity`
 ##### Returns
+Example HTTP 200 response:
+```json
+{
+    "exists": true,
+    "is_expired": false,
+    "is_invalid": false
+}
+```
+- `exists`: Whether the connection exists and is usable
+- `is_expired`: Whether the connection's refresh token has expired (based on `expires_at` in the database) past the refresh tokens MAXIMUM lifetime
+- `is_invalid`: Whether the connection's refresh token has been marked as invalid (based on `invalid_refresh_token` in the database) - it is possible for a connection to not be "expired"/past the maximum lifetime, but still be invalid (if it was revoked)
 
 ##### Headers
+- (Required) Authorization: 'Bearer {juncture_secret_key}'
+    - This is the secret key you created in your `.env` file (or was given in juncture-cloud, if using CLOUD)
+    - Used to verify that the request is coming from your backend
+    - Example:
+```json
+{
+    "Authorization": "Bearer {juncture_secret_key}"
+}
+```
 
-##### Query Params
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) provider: 'jira'
+    - The provider you want to check the connection for
+    - Currently, only 'jira' is supported
 
 ##### Description
+This endpoint is used to check the status of a connection. It verifies three things:
+1. Whether the connection exists
+2. Whether the connection's refresh token has expired (based on the `expires_at` field in the database)
+3. Whether the connection's refresh token has been marked as invalid (based on the `invalid_refresh_token` field in the database)
+
+A connection is considered invalid if:
+- The refresh token was revoked by the user in Jira
+- The refresh token was marked as invalid due to a failed refresh attempt
+
+A connection is considered expired if:
+- The current time is past the `expires_at` timestamp in the database
+- Jira refresh tokens have a maximum lifetime of 365 days
+
+Use this endpoint to:
+- Check if a user needs to re-authenticate
+- Verify if a connection is still usable before making API calls
+- Determine if you need to prompt the user to reconnect their Jira account
+
+Example use case:
+```typescript
+// Before making a Jira API call, check if the connection is valid
+const response = await fetch('/api/backend/connection-info/check-connection-validity?external_id=project123&provider=jira', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+const { is_invalid, is_expired } = await response.json();
+
+if (is_invalid || is_expired) {
+    // Prompt user to reconnect their Jira account
+    showReconnectPrompt();
+}
+```
 
 
+#
 
+#### `GET /api/backend/connection-info/get-connection-credentials`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "refresh_token": "string",
+    "expires_at": "2024-03-21T00:00:00Z",
+    "is_invalid": false
+}
+```
+- `refresh_token`: The connection's refresh token
+- `expires_at`: The timestamp when the refresh token expires (ISO 8601 format)
+- `is_invalid`: Whether the refresh token has been marked as invalid
+
+##### Headers
+- (Required) Authorization: 'Bearer {juncture_secret_key}'
+    - This is the secret key you created in your `.env` file (or was given in juncture-cloud, if using CLOUD)
+    - Used to verify that the request is coming from your backend
+    - Example:
+```json
+{
+    "Authorization": "Bearer {juncture_secret_key}"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) provider: 'jira'
+    - The provider you want to get credentials for
+    - Currently, only 'jira' is supported
+
+##### Description
+This endpoint retrieves the connection's refresh token and related information. However, you are discouraged from using this method directly since Juncture manages both the refresh token and access token lifecycle. Instead, it is recommended to use Juncture's getAccessToken endpoints and let Juncture handle the refresh token logic.
+
+The refresh token is marked as invalid if:
+- The refresh token was revoked by the user in Jira
+- The refresh token was marked as invalid due to a failed refresh attempt
+
+The `expires_at` field indicates when the refresh token will expire:
+- Jira refresh tokens have a maximum lifetime of 365 days
+- After this period, the user will need to re-authenticate
+
+Use this endpoint only if you need to:
+- Debug connection issues
+- Implement custom token management (not recommended, since you won't be able to use Juncture's integration helpers, as those also try to manage tokens. Only do this if you are only using Juncture as an authorization layer.)
+- Access the raw refresh token for specific use cases
+
+Example use case (not recommended for most cases):
+```typescript
+// Get connection credentials (only if you need the refresh token)
+const response = await fetch('/api/backend/connection-info/get-connection-credentials?external_id=project123&provider=jira', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+const { refresh_token, expires_at, is_invalid } = await response.json();
+
+saveRefreshTokenInCustomDB(); // again, not recommended to do, since it can conflict with Juncture's refresh token management
+```
+
+Note: It is strongly recommended to use Juncture's access token endpoints instead of managing refresh tokens yourself, as this could lead to conflicts with Juncture's token management system.
+
+
+#
+
+#### `GET /api/backend/connection-info/get-access-token`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "access_token": "access_token_here",
+    "expires_at": "2024-03-21T00:00:00Z"
+}
+```
+- `access_token`: The current access token for the connection
+- `expires_at`: The timestamp when the access token expires (ISO 8601 format)
+
+
+Or HTTP 403 response if reauthorization is needed:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+
+Or HTTP 401 response otherwise:
+```json
+{
+    "error": "string"
+}
+```
+
+##### Headers
+- (Required) Authorization: 'Bearer {juncture_secret_key}'
+    - This is the secret key you created in your `.env` file (or was given in juncture-cloud, if using CLOUD)
+    - Used to verify that the request is coming from your backend
+    - Example:
+```json
+{
+    "Authorization": "Bearer {juncture_secret_key}"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) provider: 'jira'
+    - The provider you want to get an access token for
+    - Currently, only 'jira' is supported
+
+##### Description
+This endpoint retrieves a valid access token for making API calls to the provider (e.g., Jira). The endpoint handles both retrieving the current access token from cache and refreshing it if necessary. Here's how it works:
+
+1. First, it checks if there's a valid access token in Redis cache
+2. If found and not expired, returns the cached token
+3. If not found or expired, it:
+   - Uses the refresh token to get a new access token
+   - Stores the new access token in Redis cache
+   - Returns the new access token
+
+The access token is cached in Redis with a TTL (Time To Live) that's slightly shorter than the actual expiration time to ensure tokens are refreshed before they expire.
+
+Use this endpoint when:
+- You need to make direct API calls to Jira (or other providers) that aren't implemented in Juncture
+- You want more control over how and when API calls are made
+- You're implementing custom integration features
+
+Example use case:
+```typescript
+// Get an access token before making a Jira API call
+const response = await fetch('/api/backend/connection-info/get-access-token?external_id=project123&provider=jira', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.status === 401) {
+    // Handle other auth errors
+    handleAuthError();
+} else {
+    // do jira api call with access token
+}
+```
+
+Important notes:
+1. If you do call this method, always call this endpoint right before making an API call, as access tokens can expire at any time. Don't try to store and use this access_token for later.
+2. The endpoint handles token refresh automatically, so you don't need to worry about refresh token logic
+3. If the refresh token is invalid or expired, the endpoint will return a 403 error, indicating that the user needs to re-authenticate
+4. The access token is cached in Redis to minimize the number of refresh token requests to the provider
 
 #
 

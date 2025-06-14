@@ -9,6 +9,9 @@ type GetNewAccessTokenResponse = {
     expiresIn: number;
 } | {
     error: string;
+} | {
+    needs_reauthorization: boolean;
+    error: string;
 }
 
 export async function storeAccessTokenInRedis(accessToken: string, expiresIn: number, connectionId: string): Promise<void> {
@@ -54,7 +57,8 @@ export async function getNewAccessTokenFromConnection(connectionId: string, prov
     
     if (isInvalid) {
         return {
-            error: 'Connection is invalid or expired. Please reauthorize the connection.'
+            error: 'Connection is invalid or expired. Please reauthorize the connection.',
+            needs_reauthorization: true
         };
     }
     
