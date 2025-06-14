@@ -9,10 +9,10 @@ import { storeAccessTokenInRedis } from '../../utils/credential_helpers';
 import { getOAuthCredentials, GetOAuthCredentialsResponse } from '../../utils/oauth_helpers';
 import { generateTemporaryConnectionCode } from '../../utils/integration_helpers/general';
 import { ConnectionCodeCacheBody } from '../../utils/integration_helpers/general';
+import { extractPublicKeyFromRequest } from '../../utils/juncture_key_helpers/public_key_helpers';  
 
 type GetAuthorizationURIBody = {
     provider: providerEnumType;
-    juncture_public_key?: string;
     external_id: string;
 }
 
@@ -42,7 +42,8 @@ type TokenResponse = {
  * @returns 
  */
 export async function initiateOAuthFlow(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
-    let { provider, juncture_public_key, external_id } = req.body;
+    let { provider, external_id } = req.body;
+    const juncture_public_key = await extractPublicKeyFromRequest(req);
 
     if (!provider || !external_id) {
         res.status(400).json({ "error": 'Missing provider or external_id' });

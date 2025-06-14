@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { providerEnumType, providerEnum } from '../../db/schema';
-import { getConnectionIDFromSecretKey } from '../../utils/secret_key_helpers';
+import { getConnectionIDFromSecretKey } from '../../utils/juncture_key_helpers/secret_key_helpers';
 import { getConnectionDetails } from '../../utils/connection_db_helpers';
 import { getAccessTokenHelper } from '../../utils/credential_helpers';
 

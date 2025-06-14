@@ -98,12 +98,12 @@ HTTP Response 200 if successful:
 }
 ```
 ##### Headers
-- (Optional) x-public-api-key: 'Bearer {juncture_public_key}'
+- (Optional) x-juncture-public-key: 'Bearer {juncture_public_key}'
     - Only pass in this parameter if you are using Juncture-Cloud. The public api key is only used to identify Juncture-cloud projects
 
 ```json
 {
-    "x-public-api-key": "KEY HERE"
+    "x-juncture-public-key": "KEY HERE"
 }
 ```
 ##### Body
@@ -211,4 +211,3 @@ Specifically, if you would like more detail, this method creates a new entry in 
 - The table is used to store provider specific information about integrations. When you create a new Jira connection, common bookkeeping info is stored in `connection`, and Jira specific integration information is stored in `jira_connection`. This is to support adding additional integrations in the future.
 - (Optional) selected_jira_project_id: a common integration use case is to associate a Jira connection with a Jira project. For example, you might only want to getAllTicketsInProject, so this column in the table makes such methods easier.
 - jira_site_id: see more details above, used to determine which site this connection actually refers to.
-

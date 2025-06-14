@@ -1,8 +1,8 @@
 import { Request } from "express";
-import { isCloudModeEnabled, useCloudContextManager } from "./CloudContextManager";
-import { providerEnumType } from "../db/schema";
-import { getDb } from "../db";
-import { getConnectionID } from "./connection_db_helpers";
+import { isCloudModeEnabled, useCloudContextManager } from "../CloudContextManager";
+import { providerEnumType } from "../../db/schema";
+import { getDb } from "../../db";
+import { getConnectionID } from "../connection_db_helpers";
 
 export type verifySecretKeyResponse = {
     isValid: boolean;
