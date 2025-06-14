@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import Combobox from "@/components/custom/combobox";
 import { useState } from "react";
 import { toast } from "sonner";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useRouter } from "next/router";
 
 type GetJiraSitesProps = {
@@ -17,11 +17,13 @@ type GetJiraSitesProps = {
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
     const { connection_code } = context.query;
-    const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/get-jira-sites`;
+    const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/fetch-available-sites`;
     
     try {
-        const response = await axios.post(api_url, {
-            connection_code,
+        const response = await axios.get(api_url, {
+            params: {
+                connection_code,
+            },
         });
 
         const data = response.data;
@@ -40,7 +42,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
         };
     } catch (error) {
         console.error(error);
-        const responseJson = (error as any)?.response?.data;
+        const responseJson = (error as AxiosError<{ error: string }>)?.response?.data;
         if (responseJson && typeof responseJson === 'object' && 'error' in responseJson) {
             return {
                 props: {
@@ -68,7 +70,7 @@ export default function FinalizeJiraConnectionPage(props: GetJiraSitesProps) {
             return;
         };
 
-        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/set-jira-site`;
+        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/create-connection`;
         
         try {
             const response = await axios.post(api_url, {
@@ -87,7 +89,7 @@ export default function FinalizeJiraConnectionPage(props: GetJiraSitesProps) {
             return;
         } catch (error) {
             console.error(error);
-            const responseJson = (error as any)?.response?.data;
+            const responseJson = (error as AxiosError<{ error: string }>)?.response?.data;
             if (responseJson && typeof responseJson === 'object' && 'error' in responseJson) {
                 toast.error(responseJson.error);
                 return;

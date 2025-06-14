@@ -9,10 +9,10 @@ import { storeAccessTokenInRedis } from '../../utils/credential_helpers';
 import { getOAuthCredentials, GetOAuthCredentialsResponse } from '../../utils/oauth_helpers';
 import { generateTemporaryConnectionCode } from '../../utils/integration_helpers/general';
 import { ConnectionCodeCacheBody } from '../../utils/integration_helpers/general';
+import { extractPublicKeyFromRequest } from '../../utils/juncture_key_helpers/public_key_helpers';  
 
 type GetAuthorizationURIBody = {
     provider: providerEnumType;
-    juncture_public_key?: string;
     external_id: string;
 }
 
@@ -24,14 +24,6 @@ type OAuthCallbackQuery = {
 type RedisOAuthStateBody = {
     external_id: string;
     juncture_public_key?: string;
-}    
-
-
-
-type TokenResponse = {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
 }
 
 /**
@@ -41,16 +33,17 @@ type TokenResponse = {
  * @req external_id The external_id is how you can uniquely identify connections in your own database (i.e. if you are managing projects and projects can integrate with Jira, then the external_id would be the project_id - there can be 1 connection per {provider, external_id} pair)
  * @returns 
  */
-export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
-    let { provider, juncture_public_key, external_id } = req.body;
+export async function initiateOAuthFlow(req: Request<{}, {}, GetAuthorizationURIBody>, res: Response): Promise<void> {
+    let { provider, external_id } = req.body;
+    const juncture_public_key = await extractPublicKeyFromRequest(req);
 
     if (!provider || !external_id) {
-        res.status(400).json({ error: 'Missing provider or external_id' });
+        res.status(400).json({ "error": 'Missing provider or external_id' });
         return;
     }
 
     if (!providerEnum.enumValues.includes(provider)) {
-        res.status(400).json({ error: 'Invalid provider. Ensure that all provider names are lowercase.' });
+        res.status(400).json({ "error": 'Invalid provider. Ensure that all provider names are lowercase.' });
         return;
     }
 
@@ -100,10 +93,10 @@ export async function getAuthorizationURI(req: Request<{}, {}, GetAuthorizationU
             `prompt=consent`;
     }
     else {
-        res.status(400).json({ error: 'Invalid provider' });
+        res.status(400).json({ "error": 'Invalid provider' });
         return;
     }
-    res.status(200).json({ authorizationUri });
+    res.status(200).json({ "authorization_uri": authorizationUri });
     return;
 }
 
@@ -279,4 +272,3 @@ async function exchangeCodeForTokens(
         return { error: 'Failed to exchange authorization code for tokens' };
     }
 }
-

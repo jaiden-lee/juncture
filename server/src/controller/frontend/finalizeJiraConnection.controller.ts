@@ -2,7 +2,7 @@ import {Request, Response} from "express";
 import {getConnectionDetailsFromConnectionCode} from "../../utils/integration_helpers/general";
 import { getAccessTokenFromRedis } from "../../utils/credential_helpers";
 import axios from "axios";
-import { getJiraConnectionDetails, updateJiraConnectionDetails } from "../../utils/integration_helpers/jira";
+import { getJiraConnectionDetails } from "../../utils/integration_helpers/jira";
 import { jiraConnection } from "../../db/schema";
 import { createConnection } from "../../utils/integration_helpers/general";
 import { ExtendTransaction } from "../../utils/connection_db_helpers";
@@ -11,12 +11,12 @@ import redis from "../../utils/redis";
 import { getConnectionCodeCacheKey } from "../../utils/integration_helpers/general";
 import { getJiraConnectionDetailsCacheKey } from "../../utils/integration_helpers/jira";
 
-type GetJiraSitesBody = {
+type GetJiraSitesQueryParams = {
     connection_code: string;
 }
 
-export async function getJiraSites(req: Request<{}, {}, GetJiraSitesBody>, res: Response) {
-    const { connection_code } = req.body;
+export async function fetchAvailableJiraSites(req: Request<{}, {}, {}, GetJiraSitesQueryParams>, res: Response) {
+    const { connection_code } = req.query;
     
     if (!connection_code) {
         res.status(400).json({ error: 'Missing connection_code' });
@@ -71,7 +71,7 @@ type SetJiraSiteBody = {
     site_id: string;
 }
 
-export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
+export async function createJiraConnection(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
     const { connection_code, site_id } = req.body;
     
     if (!connection_code || !site_id) {
@@ -145,6 +145,7 @@ export async function setJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Re
     // don't await, don't care about failure
     redis.del(getConnectionCodeCacheKey('jira', connection_code));
 
-    res.status(200).json({ connection_id: result.connection_id });
+    // res.status(200).json({ connection_id: result.connection_id });
+    res.status(200).json({ success: true });
     return;
 }
