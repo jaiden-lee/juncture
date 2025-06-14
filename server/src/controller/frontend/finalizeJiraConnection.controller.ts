@@ -71,7 +71,7 @@ type SetJiraSiteBody = {
     site_id: string;
 }
 
-export async function selectJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
+export async function createJiraConnection(req: Request<{}, {}, SetJiraSiteBody>, res: Response) {
     const { connection_code, site_id } = req.body;
     
     if (!connection_code || !site_id) {
@@ -145,6 +145,7 @@ export async function selectJiraSite(req: Request<{}, {}, SetJiraSiteBody>, res:
     // don't await, don't care about failure
     redis.del(getConnectionCodeCacheKey('jira', connection_code));
 
-    res.status(200).json({ connection_id: result.connection_id });
+    // res.status(200).json({ connection_id: result.connection_id });
+    res.status(200).json({ success: true });
     return;
 }

@@ -70,7 +70,7 @@ export default function FinalizeJiraConnectionPage(props: GetJiraSitesProps) {
             return;
         };
 
-        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/select-jira-site`;
+        const api_url = `${process.env.NEXT_PUBLIC_JUNCTURE_SERVER_URL}/api/frontend/finalize-connection/jira/create-connection`;
         
         try {
             const response = await axios.post(api_url, {
