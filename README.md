@@ -453,3 +453,128 @@ Important notes:
 - The table is used to store provider specific information about integrations. When you create a new Jira connection, common bookkeeping info is stored in `connection`, and Jira specific integration information is stored in `jira_connection`. This is to support adding additional integrations in the future.
 - (Optional) selected_jira_project_id: a common integration use case is to associate a Jira connection with a Jira project. For example, you might only want to getAllTicketsInProject, so this column in the table makes such methods easier.
 - jira_site_id: see more details above, used to determine which site this connection actually refers to.
+
+#
+# Adding a New Provider Connection
+
+To add support for a new provider (e.g., GitHub, Slack, etc.), you'll need to modify several files and implement provider-specific logic. Here's a step-by-step guide:
+
+### 1. Update Database Schema
+In `server/src/db/schema.ts`:
+1. Add the new provider to the provider enum:
+```typescript
+export const providerEnum = junctureCoreSchema.enum("provider", ["jira", "new_provider"]);
+export type providerEnumType = "jira" | "new_provider";
+```
+
+2. Create a new table for provider-specific data (similar to `jira_connection`):
+```typescript
+export const newProviderConnection = junctureCoreSchema.table('new_provider_connection', {
+  connectionId: uuid('connection_id').primaryKey().references(() => connection.connectionId, { onDelete: 'cascade' }),
+  // Add provider-specific fields here
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  lastUpdated: timestamp('last_updated', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+});
+```
+
+### 2. Create Provider-Specific Helper Functions
+Create a new file `server/src/utils/integration_helpers/new_provider.ts`:
+```typescript
+import redis from "../redis";
+import { getDb } from "../../db";
+import { newProviderConnection } from "../../db/schema";
+import { eq } from "drizzle-orm";
+
+const NEW_PROVIDER_CONNECTION_DETAILS_CACHE_PREFIX = 'new_provider_connection_details';
+
+export function getNewProviderConnectionDetailsCacheKey(connectionId: string) {
+    return `${NEW_PROVIDER_CONNECTION_DETAILS_CACHE_PREFIX}:${connectionId}`;
+}
+
+export type NewProviderConnectionDetailsResponse = {
+    // Add provider-specific response type
+} | {
+    error: string;
+}
+
+export async function getNewProviderConnectionDetails(connectionId: string): Promise<NewProviderConnectionDetailsResponse> {
+    // Implement provider-specific connection details retrieval
+}
+
+export async function updateNewProviderConnectionDetails(connectionId: string, /* provider-specific params */): Promise<{ error: string } | { success: true }> {
+    // Implement provider-specific connection details update
+}
+```
+
+### 3. Update OAuth Helpers
+In `server/src/utils/oauth_helpers.ts`:
+1. Add provider-specific OAuth credentials handling:
+```typescript
+if (provider === 'new_provider') {
+    client_id = process.env.DEFAULT_NEW_PROVIDER_CLIENT_ID!;
+    scopes = process.env.DEFAULT_NEW_PROVIDER_SCOPES!.split(',');
+    client_secret = process.env.DEFAULT_NEW_PROVIDER_CLIENT_SECRET!;
+    site_redirect_uri = process.env.DEFAULT_NEW_PROVIDER_SITE_REDIRECT_URI || '';
+}
+```
+
+### 4. Update Token Management
+In `server/src/utils/credential_helpers.ts`:
+1. Add provider-specific token refresh logic in `getNewAccessTokenFromConnection`:
+```typescript
+if (provider === 'new_provider') {
+    try {
+        response = await axios.post('https://new-provider.com/oauth/token', {
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            client_id: client_id,
+            client_secret: client_secret
+        });
+    } catch (error: any) {
+        // Handle provider-specific error cases
+    }
+}
+```
+
+### 5. Create Provider-Specific Routes
+Create a new file `server/src/routes/backend/new_provider.route.ts`:
+```typescript
+import { Router } from 'express';
+
+export default function createNewProviderConnectionRouter() {
+    const router = Router();
+    // Add provider-specific routes
+    return router;
+}
+```
+
+### 6. Update Environment Variables
+Add the following to your `.env` file:
+```env
+DEFAULT_NEW_PROVIDER_CLIENT_ID=your_client_id
+DEFAULT_NEW_PROVIDER_CLIENT_SECRET=your_client_secret
+DEFAULT_NEW_PROVIDER_SCOPES=scope1,scope2
+DEFAULT_NEW_PROVIDER_SITE_REDIRECT_URI=your_redirect_uri
+```
+
+### 7. Create Database Migration
+Run the following command to generate a new migration:
+```bash
+npm run drizzle-kit generate:pg
+```
+
+This will create a new migration file in `server/drizzle/` that includes your schema changes.
+
+### Important Notes:
+1. All provider-specific data should be stored in a separate table (like `jira_connection`)
+2. Use the `ExtendTransaction` pattern when creating connections to ensure atomic operations
+3. Implement proper error handling for provider-specific API responses
+4. Add appropriate caching mechanisms for provider-specific data
+5. Update the documentation to include the new provider's endpoints and requirements
+
+### Example Provider-Specific Implementation:
+For a complete example, look at how Jira is implemented:
+- `server/src/utils/integration_helpers/jira.ts` for provider-specific helpers
+- `server/src/db/schema.ts` for the database schema
+- `server/src/utils/credential_helpers.ts` for token management
+- `server/src/routes/backend/jira.route.ts` for provider-specific routes
