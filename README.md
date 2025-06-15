@@ -436,6 +436,184 @@ Important notes:
 
 #
 
+### Jira Integration Methods
+#### `GET /api/backend/jira/get-projects`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "projects": [
+        {
+            "id": "10000",
+            "key": "PROJ",
+            "name": "Example Project",
+            "projectTypeKey": "software",
+            "simplified": false,
+            "style": "classic",
+            "isPrivate": false,
+            "lead": {
+                "accountId": "5b10a2844c20165700ede21g",
+                "displayName": "John Doe"
+            },
+            "projectCategory": {
+                "id": "10000",
+                "name": "Development",
+                "description": "Development projects"
+            }
+        }
+    ],
+    "total": 1
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira projects"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+
+##### Description
+This endpoint retrieves all Jira projects accessible to the connected account. The endpoint handles pagination automatically and returns all projects in a single response. Each project includes detailed information such as:
+- Project ID and key
+- Project name and type
+- Project lead information
+- Project category (if set)
+- Project visibility settings
+
+Use this endpoint to:
+- List all available Jira projects for a connection
+- Get detailed project information for project selection
+- Verify project access and permissions
+
+Example use case:
+```typescript
+// Get all Jira projects for a connection
+const response = await fetch('/api/backend/jira/get-projects?external_id=project123', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { projects } = await response.json();
+    // Display projects for selection
+    displayProjectSelection(projects);
+}
+```
+
+#### `POST /api/backend/jira/select-project`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "success": true
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id or jira_project_id"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+##### Request Body
+```json
+{
+    "external_id": "project123",
+    "jira_project_id": "10000"
+}
+```
+
+##### Description
+This endpoint sets the selected Jira project for a connection in Juncture's database. This selection is crucial for project-based integrations, such as:
+- Fetching all tickets in a specific project
+- Getting project-specific metrics and statistics
+- Managing project-level webhooks and notifications
+
+The selected project ID is stored in the `jira_connection` table and is used by other Juncture endpoints that require project context.
+
+Use this endpoint to:
+- Set the default project for a Jira connection
+- Change the selected project for an existing connection
+- Enable project-specific integrations
+
+Example use case:
+```typescript
+// Select a Jira project for a connection
+const response = await fetch('/api/backend/jira/select-project', {
+    method: 'POST',
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        external_id: 'project123',
+        jira_project_id: '10000'
+    })
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    // Project selection successful
+    showSuccessMessage();
+}
+```
+
 # Database Schema
 **connection(<u>connection_id</u>, refresh_token, invalid_refresh_token, expires_at, created_at, last_updated)**
 - invalid_refresh_token is a boolean that marks whether or not a refresh_token has been invalidated (perhaps it was revoked, or expired). Specifically, if a request to refresh an access token fails with a request 403 from Jira (or the provider that is being used), then we mark this refresh token as invalid, which forces users to have to reauthenticate.

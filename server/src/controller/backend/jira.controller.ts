@@ -140,7 +140,8 @@ type SelectJiraProjectResponse = {
 /**
  * Select a Jira project for a given external ID
  * Scopes: read:jira-work
- * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.body.external_id - The external ID of the Jira connection
+ * @param req.body.jira_project_id - The ID of the Jira project to select
  * @param req.headers.Authorization - The juncture secret key
  * @param res.json - The selected Jira project
  */
@@ -182,5 +183,4 @@ export async function selectJiraProject(req: Request<{}, {}, SelectJiraProjectBo
 
     res.status(200).json({ success: true });
 }
-    
 
