@@ -69,11 +69,13 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
         return;
     }
 
-    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
-    if ('error' in siteName) {
-        res.status(401).json({ error: siteName.error });
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
         return;
     }
+    const siteId = jiraConnectionDetails.siteId;
+    const selectedProjectId = jiraConnectionDetails.selectedProjectId ?? null;
 
     try {
         const allProjects: JiraProject[] = [];
@@ -82,7 +84,7 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
         let isLastPage = false;
 
         while (!isLastPage) {
-            const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/api/3/project/search`, {
+            const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/project/search`, {
                 headers: {
                     'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                     'Accept': 'application/json'
@@ -104,10 +106,6 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
             }
         }
 
-        // Get the selected project ID from the database
-        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
-        const selectedProjectId = 'error' in jiraConnectionDetails ? null : (jiraConnectionDetails.selectedProjectId ?? null);
-
         res.status(200).json({
             projects: allProjects,
             total: allProjects.length,
@@ -115,7 +113,7 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
         });
         return;
     } catch (error: any) {
-        console.error('Error fetching Jira projects:', error);
+        // console.error('Error fetching Jira projects:', error);
         res.status(500).json({ 
             error: 'Failed to fetch Jira projects',
         });
@@ -312,11 +310,13 @@ export async function getJiraTicketsForProject(req: Request<{}, {}, {}, GetJiraT
         return;
     }
 
-    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
-    if ('error' in siteName) {
-        res.status(401).json({ error: siteName.error });
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
         return;
     }
+    const siteId = jiraConnectionDetails.siteId;
+    
 
     try {
         const allTickets: JiraTicket[] = [];
@@ -325,7 +325,7 @@ export async function getJiraTicketsForProject(req: Request<{}, {}, {}, GetJiraT
         let isLastPage = false;
 
         while (!isLastPage) {
-            const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/api/3/search`, {
+            const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/search`, {
                 headers: {
                     'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                     'Accept': 'application/json'
@@ -462,15 +462,16 @@ export async function getAllSprintsForProject(req: Request<{}, {}, {}, GetSprint
         return;
     }
 
-    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
-    if ('error' in siteName) {
-        res.status(401).json({ error: siteName.error });
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
         return;
     }
+    const siteId = jiraConnectionDetails.siteId;
 
     try {
         // First, get all boards for the project
-        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+        const boardResponse = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/board`, {
             headers: {
                 'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                 'Accept': 'application/json'
@@ -497,7 +498,7 @@ export async function getAllSprintsForProject(req: Request<{}, {}, {}, GetSprint
             let isLastPage = false;
 
             while (!isLastPage) {
-                const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board/${board.id}/sprint`, {
+                const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/board/${board.id}/sprint`, {
                     headers: {
                         'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                         'Accept': 'application/json'
@@ -594,15 +595,16 @@ export async function getActiveSprintsPerProject(req: Request<{}, {}, {}, GetSpr
         return;
     }
 
-    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
-    if ('error' in siteName) {
-        res.status(401).json({ error: siteName.error });
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
         return;
     }
+    const siteId = jiraConnectionDetails.siteId;
 
     try {
         // First, get all boards for the project
-        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+        const boardResponse = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/board`, {
             headers: {
                 'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                 'Accept': 'application/json'
@@ -622,7 +624,7 @@ export async function getActiveSprintsPerProject(req: Request<{}, {}, {}, GetSpr
 
         // Get active sprints for each board
         for (const board of boards) {
-            const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board/${board.id}/sprint`, {
+            const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/board/${board.id}/sprint`, {
                 headers: {
                     'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                     'Accept': 'application/json'
@@ -722,15 +724,15 @@ export async function getJiraBoardForProject(req: Request<{}, {}, {}, GetJiraBoa
         return;
     }
 
-    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
-    if ('error' in siteName) {
-        res.status(401).json({ error: siteName.error });
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
         return;
     }
-
+    const siteId = jiraConnectionDetails.siteId;
     try {
         // Get all boards for the project
-        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+        const boardResponse = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/board`, {
             headers: {
                 'Authorization': `Bearer ${accessTokenResult.accessToken}`,
                 'Accept': 'application/json'
@@ -757,7 +759,6 @@ export async function getJiraBoardForProject(req: Request<{}, {}, {}, GetJiraBoa
         });
         return;
     } catch (error: any) {
-        console.error('Error fetching Jira boards:', error);
         res.status(500).json({ 
             error: 'Failed to fetch Jira boards',
         });

@@ -106,12 +106,12 @@ export type GetJiraSiteNameFromConnectionIdResponse = {
 export async function getJiraSiteNameFromConnectionId(connectionId: string, accessToken: string): Promise<GetJiraSiteNameFromConnectionIdResponse> {
     const cachedSiteName = await redis.get(getJiraSiteNameFromConnectionIdCacheKey(connectionId));
     if (cachedSiteName) {
+        const cachedData = JSON.parse(cachedSiteName as string);
         return {
-            siteName: cachedSiteName as string
+            siteName: cachedData.siteName
         };
     }
 
-    
     const connectionDetails = await getJiraConnectionDetails(connectionId);
     if ('error' in connectionDetails) {
         return connectionDetails;
@@ -127,17 +127,24 @@ export async function getJiraSiteNameFromConnectionId(connectionId: string, acce
             }
         });
 
-        const siteName = sitesResponse.data.find((site: any) => site.id === siteId)?.name;
+        const site = sitesResponse.data.find((site: any) => site.id === siteId);
 
+        if (!site) {
+            return {
+                error: 'Failed to find Jira site with the given ID. Please try reauthorizing the connection.'
+            };
+        }
 
+        const siteData = {
+            siteName: site.name,
+            siteId: site.id
+        };
 
-        redis.set(getJiraSiteNameFromConnectionIdCacheKey(connectionId), siteName, {
+        redis.set(getJiraSiteNameFromConnectionIdCacheKey(connectionId), JSON.stringify(siteData), {
             ex: 24*60*60
         });
 
-        return {
-            siteName: siteName
-        };
+        return siteData;
     } catch (error) {
         return {
             error: 'Failed to get Jira site name. Please try again later.'
