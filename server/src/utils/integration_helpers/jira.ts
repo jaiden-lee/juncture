@@ -1,7 +1,8 @@
 import redis from "../redis";
 import {getDb} from "../../db";
-import { jiraConnection } from "../../db/schema";
+import { connection, jiraConnection } from "../../db/schema";
 import { eq } from "drizzle-orm";
+import axios from "axios";
 
 
 const JIRA_CONNECTION_DETAILS_CACHE_PREFIX = 'jira_connection_details';
@@ -60,7 +61,7 @@ export type CreateJiraConnectionDetailsResponse = {
 
 // This method should only be called to update selectedProjectId
 // siteId is only updated during the finalize-connection flow
-export async function updateJiraConnectionDetails(connectionId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse> {
+export async function updateSelectedJiraProject(connectionId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse> {
     const drizzle = getDb();
 
     
@@ -85,4 +86,61 @@ export async function updateJiraConnectionDetails(connectionId: string, selected
     return {    
         success: true
     };
+}
+
+
+
+
+const JIRA_SITE_NAME_FROM_CONNECTION_ID_CACHE_PREFIX = 'jira_site_name_from_connection_id';
+
+export function getJiraSiteNameFromConnectionIdCacheKey(connectionId: string) {
+    return `${JIRA_SITE_NAME_FROM_CONNECTION_ID_CACHE_PREFIX}:${connectionId}`;
+}
+
+export type GetJiraSiteNameFromConnectionIdResponse = {
+    error: string;
+} | {
+    siteName: string;
+}
+
+export async function getJiraSiteNameFromConnectionId(connectionId: string, accessToken: string): Promise<GetJiraSiteNameFromConnectionIdResponse> {
+    const cachedSiteName = await redis.get(getJiraSiteNameFromConnectionIdCacheKey(connectionId));
+    if (cachedSiteName) {
+        return {
+            siteName: cachedSiteName as string
+        };
+    }
+
+    
+    const connectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in connectionDetails) {
+        return connectionDetails;
+    }
+
+    const siteId = connectionDetails.siteId;
+
+    try {
+        const sitesResponse = await axios.get('https://api.atlassian.com/oauth/token/accessible-resources', {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        const siteName = sitesResponse.data.find((site: any) => site.id === siteId)?.name;
+
+
+
+        redis.set(getJiraSiteNameFromConnectionIdCacheKey(connectionId), siteName, {
+            ex: 24*60*60
+        });
+
+        return {
+            siteName: siteName
+        };
+    } catch (error) {
+        return {
+            error: 'Failed to get Jira site name. Please try again later.'
+        };
+    }
 }
