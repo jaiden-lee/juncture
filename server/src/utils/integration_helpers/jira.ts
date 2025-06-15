@@ -64,9 +64,9 @@ export type CreateJiraConnectionDetailsResponse = {
 export async function updateSelectedJiraProject(connectionId: string, selectedProjectId?: string | null): Promise<CreateJiraConnectionDetailsResponse> {
     const drizzle = getDb();
 
-    
     const connection = await drizzle.update(jiraConnection).set({
-        selectedJiraProjectId: selectedProjectId ?? null
+        selectedJiraProjectId: selectedProjectId ?? null,
+        lastUpdated: new Date()
     }).where(eq(jiraConnection.connectionId, connectionId)).returning();
     
     if (connection.length === 0) {
