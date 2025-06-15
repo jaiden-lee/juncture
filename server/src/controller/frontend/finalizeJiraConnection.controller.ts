@@ -98,7 +98,8 @@ export async function createJiraConnection(req: Request<{}, {}, SetJiraSiteBody>
             await tx.insert(jiraConnection).values({
                 connectionId,
                 jiraSiteId: site_id,
-                selectedJiraProjectId: null
+                selectedJiraProjectId: null,
+                lastUpdated: new Date()
             });
         } else {
             // don't update project id, only update site id
@@ -108,7 +109,8 @@ export async function createJiraConnection(req: Request<{}, {}, SetJiraSiteBody>
     // or maybe I can just add a function here later that checks if the project id is valid
     // either way, I would need some way to ensure it, but I don't have selected project id logic yet, so don't worry about it
             await tx.update(jiraConnection).set({
-                jiraSiteId: site_id
+                jiraSiteId: site_id,
+                lastUpdated: new Date()
             }).where(eq(jiraConnection.connectionId, connectionId)).returning();
         }
     }
