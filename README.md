@@ -558,14 +558,6 @@ HTTP 401 response:
 }
 ```
 
-HTTP 403 response:
-```json
-{
-    "error": "Connection is invalid or expired. Please reauthorize the connection.",
-    "needs_reauthorization": true
-}
-```
-
 ##### Request Body
 ```json
 {
@@ -580,7 +572,7 @@ This endpoint sets the selected Jira project for a connection in Juncture's data
 - Getting project-specific metrics and statistics
 - Managing project-level webhooks and notifications
 
-The selected project ID is stored in the `jira_connection` table and is used by other Juncture endpoints that require project context.
+The selected project ID is stored in the `jira_connection` table and is used by other Juncture endpoints that require project context. This endpoint only interacts with Juncture's database and does not make any calls to Jira's API, so it cannot fail due to Jira API issues or require reauthorization.
 
 Use this endpoint to:
 - Set the default project for a Jira connection
@@ -602,15 +594,67 @@ const response = await fetch('/api/backend/jira/select-project', {
     })
 });
 
-if (response.status === 403) {
-    const data = await response.json();
-    if (data.needs_reauthorization) {
-        // Start reauthorization flow
-        startReauthorizationFlow();
-    }
-} else if (response.ok) {
+if (response.ok) {
     // Project selection successful
     showSuccessMessage();
+}
+```
+
+#### `GET /api/backend/jira/get-selected-project`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "jira_project_id": "10000"
+}
+```
+Note: `jira_project_id` will be `null` if no project has been selected.
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+
+##### Description
+This endpoint retrieves the currently selected Jira project ID for a connection from Juncture's database. This endpoint only interacts with Juncture's database and does not make any calls to Jira's API, so it cannot fail due to Jira API issues or require reauthorization.
+
+Use this endpoint to:
+- Check if a project has been selected for a connection
+- Get the currently selected project ID for project-specific operations
+- Verify project selection before making project-specific API calls
+
+Example use case:
+```typescript
+// Get the selected project ID for a connection
+const response = await fetch('/api/backend/jira/get-selected-project?external_id=project123', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.ok) {
+    const { jira_project_id } = await response.json();
+    if (jira_project_id) {
+        // A project is selected, proceed with project-specific operations
+        fetchProjectTickets(jira_project_id);
+    } else {
+        // No project selected, prompt user to select one
+        showProjectSelectionPrompt();
+    }
 }
 ```
 
