@@ -2,11 +2,21 @@ import { Request, Response } from 'express';
 import { getConnectionIDFromSecretKey } from '../../utils/juncture_key_helpers/secret_key_helpers';
 import { getConnectionDetails } from '../../utils/connection_db_helpers';
 import { getAccessTokenHelper } from '../../utils/credential_helpers';
-import { getJiraSiteNameFromConnectionId } from '../../utils/integration_helpers/jira';
+import { getJiraSiteNameFromConnectionId, updateSelectedJiraProject } from '../../utils/integration_helpers/jira';
 import axios from 'axios';
 
 type GetJiraProjectsQueryParams = {
     external_id: string;
+}
+
+type GetJiraProjectsResponse = {
+    projects: JiraProject[];
+    total: number;
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
 }
 
 type JiraProject = {
@@ -35,29 +45,34 @@ type JiraProject = {
  * @param req.headers.Authorization - The juncture secret key
  * @param res.json - The projects for the given external ID
  */
-export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQueryParams>, res: Response) {
+export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQueryParams>, res: Response<GetJiraProjectsResponse>) {
     const { external_id } = req.query;
     
     if (!external_id) {
-        return res.status(400).json({ error: 'Missing external_id' });
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
     }
 
     const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
     if (!connectionId) {
-        return res.status(401).json({ error: error! });
+        res.status(401).json({ error: error! });
+        return;
     }
 
     const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
     if ('needs_reauthorization' in accessTokenResult) {
-        return res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
     }
     if ('error' in accessTokenResult) {
-        return res.status(401).json({ error: accessTokenResult.error });
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
     }
 
     const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
     if ('error' in siteName) {
-        return res.status(401).json({ error: siteName.error });
+        res.status(401).json({ error: siteName.error });
+        return;
     }
 
     try {
@@ -89,16 +104,83 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
             }
         }
 
-        return res.status(200).json({
+        res.status(200).json({
             projects: allProjects,
             total: allProjects.length
         });
+        return;
     } catch (error: any) {
         console.error('Error fetching Jira projects:', error);
-        return res.status(500).json({ 
+        res.status(500).json({ 
             error: 'Failed to fetch Jira projects',
-            details: error.response?.data?.message || error.message
         });
+        return;
     }
 }
+
+
+
+
+
+
+
+type SelectJiraProjectBody = {
+    jira_project_id: string;
+    external_id: string;
+}
+
+type SelectJiraProjectResponse = {
+    error: string;
+} | {
+    success: true;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+/**
+ * Select a Jira project for a given external ID
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The selected Jira project
+ */
+export async function selectJiraProject(req: Request<{}, {}, SelectJiraProjectBody>, res: Response<SelectJiraProjectResponse>) {
+    const { external_id, jira_project_id } = req.body;
+    
+    if (!external_id || !jira_project_id) {
+        res.status(400).json({ error: 'Missing external_id or jira_project_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);    
+    if ('error' in siteName) {
+        res.status(401).json({ error: siteName.error });
+        return;
+    }
+    
+    const updateSelectedJiraProjectResult = await updateSelectedJiraProject(connectionId, jira_project_id);
+    if ('error' in updateSelectedJiraProjectResult) {
+        res.status(401).json({ error: updateSelectedJiraProjectResult.error });
+        return;
+    }
+
+    res.status(200).json({ success: true });
+}
+    
 
