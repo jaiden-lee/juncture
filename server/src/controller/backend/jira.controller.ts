@@ -12,6 +12,7 @@ type GetJiraProjectsQueryParams = {
 type GetJiraProjectsResponse = {
     projects: JiraProject[];
     total: number;
+    selected_project_id: string | null;
 } | {
     error: string;
 } | {
@@ -43,7 +44,7 @@ type JiraProject = {
  * Scopes: read:jira-work
  * @param req.query.external_id - The external ID of the Jira connection
  * @param req.headers.Authorization - The juncture secret key
- * @param res.json - The projects for the given external ID
+ * @param res.json - The projects for the given external ID and the currently selected project ID
  */
 export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQueryParams>, res: Response<GetJiraProjectsResponse>) {
     const { external_id } = req.query;
@@ -104,9 +105,14 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
             }
         }
 
+        // Get the selected project ID from the database
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        const selectedProjectId = 'error' in jiraConnectionDetails ? null : (jiraConnectionDetails.selectedProjectId ?? null);
+
         res.status(200).json({
             projects: allProjects,
-            total: allProjects.length
+            total: allProjects.length,
+            selected_project_id: selectedProjectId
         });
         return;
     } catch (error: any) {

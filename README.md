@@ -462,9 +462,11 @@ HTTP 200 response:
             }
         }
     ],
-    "total": 1
+    "total": 1,
+    "selected_project_id": "10000"
 }
 ```
+Note: `selected_project_id` will be `null` if no project has been selected.
 
 HTTP 400 response:
 ```json
