@@ -786,6 +786,419 @@ if (response.status === 403) {
 }
 ```
 
+#### `GET /api/backend/jira/get-all-sprints`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "boards": [
+        {
+            "board_id": 10000,
+            "board_name": "Example Scrum Board",
+            "board_type": "scrum",
+            "sprints": [
+                {
+                    "id": 10000,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
+                    "state": "active",
+                    "name": "Sprint 1",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete initial feature set"
+                },
+                {
+                    "id": 10001,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10001",
+                    "state": "active",
+                    "name": "Sprint 2",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete additional features"
+                }
+            ],
+            "active_sprints": [
+                {
+                    "id": 10000,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
+                    "state": "active",
+                    "name": "Sprint 1",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete initial feature set"
+                },
+                {
+                    "id": 10001,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10001",
+                    "state": "active",
+                    "name": "Sprint 2",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete additional features"
+                }
+            ]
+        },
+        {
+            "board_id": 10001,
+            "board_name": "Example Kanban Board",
+            "board_type": "kanban",
+            "sprints": [],
+            "active_sprints": []
+        }
+    ],
+    "total_sprints": 2
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "No project selected and no project ID provided"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "No agile boards found for this project"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira sprints"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Optional) jira_project_id: The ID of the Jira project to get sprints for
+    - If not provided, uses the currently selected project from the connection
+    - If no project is selected and no project ID is provided, returns a 400 error
+
+##### Description
+This endpoint retrieves all sprints for all boards in a specific project. A project can have multiple boards (e.g., one scrum board and one kanban board), and each board can have its own set of sprints. The response includes:
+- A list of boards, each containing:
+  - Board ID, name, and type
+  - All sprints for that board (future, active, and closed)
+  - The currently active sprints for that board (if any)
+- Total count of all sprints across all boards
+
+The endpoint requires either:
+1. A project ID provided in the query parameters, or
+2. A previously selected project for the connection
+
+Use this endpoint to:
+- List all sprints across all boards in a project
+- Get detailed sprint information for each board
+- Track sprint status and timelines
+- Monitor sprint progress across different boards
+
+Example use case:
+```typescript
+// Get all sprints for all boards in a project
+const response = await fetch('/api/backend/jira/get-all-sprints?external_id=project123&jira_project_id=10000', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { boards } = await response.json();
+    // Display sprints grouped by board
+    boards.forEach(board => {
+        displayBoardSprints(board);
+    });
+}
+```
+
+#### `GET /api/backend/jira/get-active-sprints`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "boards": [
+        {
+            "board_id": 10000,
+            "board_name": "Example Scrum Board",
+            "board_type": "scrum",
+            "active_sprints": [
+                {
+                    "id": 10000,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
+                    "state": "active",
+                    "name": "Sprint 1",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete initial feature set"
+                },
+                {
+                    "id": 10001,
+                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10001",
+                    "state": "active",
+                    "name": "Sprint 2",
+                    "startDate": "2024-03-21T00:00:00.000Z",
+                    "endDate": "2024-04-04T00:00:00.000Z",
+                    "completeDate": null,
+                    "originBoardId": 10000,
+                    "goal": "Complete additional features"
+                }
+            ]
+        },
+        {
+            "board_id": 10001,
+            "board_name": "Example Kanban Board",
+            "board_type": "kanban",
+            "active_sprints": []
+        }
+    ]
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "No project selected and no project ID provided"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "No agile boards found for this project"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch active Jira sprints"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Optional) jira_project_id: The ID of the Jira project to get active sprints for
+    - If not provided, uses the currently selected project from the connection
+    - If no project is selected and no project ID is provided, returns a 400 error
+
+##### Description
+This endpoint retrieves only the active sprints for all boards in a specific project. A project can have multiple boards (e.g., one scrum board and one kanban board), and each board can have multiple active sprints. The response includes:
+- A list of boards, each containing:
+  - Board ID, name, and type
+  - An array of currently active sprints for that board (if any)
+
+The endpoint requires either:
+1. A project ID provided in the query parameters, or
+2. A previously selected project for the connection
+
+Use this endpoint to:
+- Get information about all active sprints across all boards
+- Display active sprint details for each board
+- Track current sprint progress
+- Monitor sprint timelines
+
+Example use case:
+```typescript
+// Get active sprints for all boards in a project
+const response = await fetch('/api/backend/jira/get-active-sprints?external_id=project123&jira_project_id=10000', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { boards } = await response.json();
+    // Display active sprints for each board
+    boards.forEach(board => {
+        if (board.active_sprints.length > 0) {
+            displayActiveSprints(board);
+        }
+    });
+}
+```
+
+#### `GET /api/backend/jira/get-board`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "boards": [
+        {
+            "board_id": 10000,
+            "board_name": "Example Board",
+            "board_type": "scrum"
+        },
+        {
+            "board_id": 10001,
+            "board_name": "Example Kanban Board",
+            "board_type": "kanban"
+        }
+    ],
+    "total": 2
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "No project selected and no project ID provided"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "No agile boards found for this project"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira boards"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Optional) jira_project_id: The ID of the Jira project to get boards for
+    - If not provided, uses the currently selected project from the connection
+    - If no project is selected and no project ID is provided, returns a 400 error
+
+##### Description
+This endpoint retrieves all agile boards associated with a Jira project. A project can have multiple boards of different types (e.g., scrum, kanban). The board information includes:
+- Board ID (required for sprint-related operations)
+- Board name
+- Board type (e.g., scrum, kanban)
+
+The endpoint requires either:
+1. A project ID provided in the query parameters, or
+2. A previously selected project for the connection
+
+Use this endpoint to:
+- Get all boards associated with a project
+- Get board IDs needed for sprint operations
+- Verify if a project has any agile boards
+- Get board details for display purposes
+- Allow users to select which board they want to work with
+
+Example use case:
+```typescript
+// Get all boards for a project
+const response = await fetch('/api/backend/jira/get-board?external_id=project123&jira_project_id=10000', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { boards } = await response.json();
+    // Display boards for selection
+    displayBoardSelection(boards);
+    // Use selected board ID for sprint operations
+    const selectedBoardId = boards[0].board_id;
+    fetchSprints(selectedBoardId);
+}
+```
+
 # Database Schema
 **connection(<u>connection_id</u>, refresh_token, invalid_refresh_token, expires_at, created_at, last_updated)**
 - invalid_refresh_token is a boolean that marks whether or not a refresh_token has been invalidated (perhaps it was revoked, or expired). Specifically, if a request to refresh an access token fails with a request 403 from Jira (or the provider that is being used), then we mark this refresh token as invalid, which forces users to have to reauthenticate.

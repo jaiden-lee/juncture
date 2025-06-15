@@ -365,3 +365,402 @@ export async function getJiraTicketsForProject(req: Request<{}, {}, {}, GetJiraT
 
 
 
+
+
+type GetSprintsQueryParams = {
+    external_id: string;
+    jira_project_id?: string;
+}
+
+type GetSprintsResponse = {
+    boards: {
+        board_id: number;
+        board_name: string;
+        board_type: string;
+        sprints: JiraSprint[];
+        active_sprints: JiraSprint[];
+    }[];
+    total_sprints: number;
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+type GetActiveSprintsResponse = {
+    boards: {
+        board_id: number;
+        board_name: string;
+        board_type: string;
+        active_sprints: JiraSprint[];
+    }[];
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+type JiraSprint = {
+    id: number;
+    self: string;
+    state: 'future' | 'active' | 'closed';
+    name: string;
+    startDate?: string;
+    endDate?: string;
+    completeDate?: string;
+    originBoardId: number;
+    goal?: string;
+}
+
+/**
+ * Get all sprints for all boards in a project
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.jira_project_id - (Optional) The ID of the Jira project to get sprints for. If not provided, uses the selected project.
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The sprints for all boards in the given project
+ */
+export async function getAllSprintsForProject(req: Request<{}, {}, {}, GetSprintsQueryParams>, res: Response<GetSprintsResponse>) {
+    const { external_id, jira_project_id } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    // If no project ID provided in query, get the selected project
+    let projectIdToUse = jira_project_id;
+    if (!projectIdToUse) {
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        if ('error' in jiraConnectionDetails) {
+            res.status(401).json({ error: jiraConnectionDetails.error });
+            return;
+        }
+        projectIdToUse = jiraConnectionDetails.selectedProjectId ?? undefined;
+    }
+
+    if (!projectIdToUse) {
+        res.status(400).json({ error: 'No project selected and no project ID provided' });
+        return;
+    }
+
+    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
+    if ('error' in siteName) {
+        res.status(401).json({ error: siteName.error });
+        return;
+    }
+
+    try {
+        // First, get all boards for the project
+        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            },
+            params: {
+                projectKeyOrId: projectIdToUse
+            }
+        });
+
+        if (!boardResponse.data.values.length) {
+            res.status(404).json({ error: 'No agile boards found for this project' });
+            return;
+        }
+
+        const boards = boardResponse.data.values;
+        const boardsWithSprints = [];
+        let totalSprints = 0;
+
+        // Get sprints for each board
+        for (const board of boards) {
+            const allSprints: JiraSprint[] = [];
+            let startAt = 0;
+            const maxResults = 50;
+            let isLastPage = false;
+
+            while (!isLastPage) {
+                const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board/${board.id}/sprint`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                        'Accept': 'application/json'
+                    },
+                    params: {
+                        startAt,
+                        maxResults,
+                        state: 'active,future,closed'
+                    }
+                });
+
+                const { values, isLast } = response.data;
+                allSprints.push(...values);
+                
+                if (isLast) {
+                    isLastPage = true;
+                } else {
+                    startAt += maxResults;
+                }
+            }
+
+            // Find all active sprints for this board
+            const activeSprints = allSprints.filter(sprint => sprint.state === 'active');
+            totalSprints += allSprints.length;
+
+            boardsWithSprints.push({
+                board_id: board.id,
+                board_name: board.name,
+                board_type: board.type,
+                sprints: allSprints,
+                active_sprints: activeSprints
+            });
+        }
+
+        res.status(200).json({
+            boards: boardsWithSprints,
+            total_sprints: totalSprints
+        });
+        return;
+    } catch (error: any) {
+        console.error('Error fetching Jira sprints:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch Jira sprints',
+        });
+        return;
+    }
+}
+
+/**
+ * Get active sprints for all boards in a project
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.jira_project_id - (Optional) The ID of the Jira project to get active sprints for. If not provided, uses the selected project.
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The active sprints for all boards in the given project
+ */
+export async function getActiveSprintsPerProject(req: Request<{}, {}, {}, GetSprintsQueryParams>, res: Response<GetActiveSprintsResponse>) {
+    const { external_id, jira_project_id } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    // If no project ID provided in query, get the selected project
+    let projectIdToUse = jira_project_id;
+    if (!projectIdToUse) {
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        if ('error' in jiraConnectionDetails) {
+            res.status(401).json({ error: jiraConnectionDetails.error });
+            return;
+        }
+        projectIdToUse = jiraConnectionDetails.selectedProjectId ?? undefined;
+    }
+
+    if (!projectIdToUse) {
+        res.status(400).json({ error: 'No project selected and no project ID provided' });
+        return;
+    }
+
+    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
+    if ('error' in siteName) {
+        res.status(401).json({ error: siteName.error });
+        return;
+    }
+
+    try {
+        // First, get all boards for the project
+        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            },
+            params: {
+                projectKeyOrId: projectIdToUse
+            }
+        });
+
+        if (!boardResponse.data.values.length) {
+            res.status(404).json({ error: 'No agile boards found for this project' });
+            return;
+        }
+
+        const boards = boardResponse.data.values;
+        const boardsWithActiveSprints = [];
+
+        // Get active sprints for each board
+        for (const board of boards) {
+            const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board/${board.id}/sprint`, {
+                headers: {
+                    'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                    'Accept': 'application/json'
+                },
+                params: {
+                    state: 'active'
+                }
+            });
+
+            const activeSprints = response.data.values || [];
+
+            boardsWithActiveSprints.push({
+                board_id: board.id,
+                board_name: board.name,
+                board_type: board.type,
+                active_sprints: activeSprints
+            });
+        }
+
+        res.status(200).json({
+            boards: boardsWithActiveSprints
+        });
+        return;
+    } catch (error: any) {
+        console.error('Error fetching active Jira sprints:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch active Jira sprints',
+        });
+        return;
+    }
+}
+
+type GetJiraBoardQueryParams = {
+    external_id: string;
+    jira_project_id?: string;
+}
+
+type GetJiraBoardResponse = {
+    boards: {
+        board_id: number;
+        board_name: string;
+        board_type: string;
+    }[];
+    total: number;
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+/**
+ * Get all boards for a Jira project
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.jira_project_id - (Optional) The ID of the Jira project to get boards for. If not provided, uses the selected project.
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The boards for the given project
+ */
+export async function getJiraBoardForProject(req: Request<{}, {}, {}, GetJiraBoardQueryParams>, res: Response<GetJiraBoardResponse>) {
+    const { external_id, jira_project_id } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    // If no project ID provided in query, get the selected project
+    let projectIdToUse = jira_project_id;
+    if (!projectIdToUse) {
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        if ('error' in jiraConnectionDetails) {
+            res.status(401).json({ error: jiraConnectionDetails.error });
+            return;
+        }
+        projectIdToUse = jiraConnectionDetails.selectedProjectId ?? undefined;
+    }
+
+    if (!projectIdToUse) {
+        res.status(400).json({ error: 'No project selected and no project ID provided' });
+        return;
+    }
+
+    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
+    if ('error' in siteName) {
+        res.status(401).json({ error: siteName.error });
+        return;
+    }
+
+    try {
+        // Get all boards for the project
+        const boardResponse = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/agile/1.0/board`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            },
+            params: {
+                projectKeyOrId: projectIdToUse
+            }
+        });
+
+        if (!boardResponse.data.values.length) {
+            res.status(404).json({ error: 'No agile boards found for this project' });
+            return;
+        }
+
+        const boards = boardResponse.data.values.map((board: any) => ({
+            board_id: board.id,
+            board_name: board.name,
+            board_type: board.type
+        }));
+
+        res.status(200).json({
+            boards,
+            total: boardResponse.data.total
+        });
+        return;
+    } catch (error: any) {
+        console.error('Error fetching Jira boards:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch Jira boards',
+        });
+        return;
+    }
+}
