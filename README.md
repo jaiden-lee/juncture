@@ -660,6 +660,132 @@ if (response.ok) {
 }
 ```
 
+#### `GET /api/backend/jira/get-tickets-for-project`
+##### Returns
+HTTP 200 response:
+```json
+{
+    "tickets": [
+        {
+            "id": "10000",
+            "key": "PROJ-1",
+            "fields": {
+                "summary": "Example ticket",
+                "description": "This is an example ticket",
+                "status": {
+                    "id": "10000",
+                    "name": "To Do",
+                    "statusCategory": {
+                        "id": 2,
+                        "key": "new",
+                        "colorName": "blue-gray"
+                    }
+                },
+                "assignee": {
+                    "accountId": "5b10a2844c20165700ede21g",
+                    "displayName": "John Doe"
+                },
+                "reporter": {
+                    "accountId": "5b10a2844c20165700ede21g",
+                    "displayName": "John Doe"
+                },
+                "created": "2024-03-21T00:00:00.000+0000",
+                "updated": "2024-03-21T00:00:00.000+0000",
+                "priority": {
+                    "id": "2",
+                    "name": "High"
+                }
+            }
+        }
+    ],
+    "total": 1
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "No project selected and no project ID provided"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira tickets"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Optional) jira_project_id: The ID of the Jira project to get tickets for
+    - If not provided, uses the currently selected project from the connection
+    - If no project is selected and no project ID is provided, returns a 400 error
+
+##### Description
+This endpoint retrieves all Jira tickets for a specific project. The endpoint handles pagination automatically and returns all tickets in a single response. Each ticket includes detailed information such as:
+- Ticket ID and key
+- Summary and description
+- Current status and status category
+- Assignee and reporter information
+- Creation and update timestamps
+- Priority level
+
+The tickets are ordered by creation date (newest first) and include all standard Jira fields. The endpoint requires either:
+1. A project ID provided in the query parameters, or
+2. A previously selected project for the connection
+
+Use this endpoint to:
+- List all tickets in a project
+- Get detailed ticket information
+- Track ticket status and assignments
+- Monitor project activity
+
+Example use case:
+```typescript
+// Get all tickets for a project
+const response = await fetch('/api/backend/jira/get-tickets?external_id=project123&jira_project_id=10000', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { tickets } = await response.json();
+    // Display tickets in UI
+    displayTickets(tickets);
+}
+```
+
 # Database Schema
 **connection(<u>connection_id</u>, refresh_token, invalid_refresh_token, expires_at, created_at, last_updated)**
 - invalid_refresh_token is a boolean that marks whether or not a refresh_token has been invalidated (perhaps it was revoked, or expired). Specifically, if a request to refresh an access token fails with a request 403 from Jira (or the provider that is being used), then we mark this refresh token as invalid, which forces users to have to reauthenticate.

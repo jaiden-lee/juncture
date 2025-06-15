@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { getConnectionIDFromSecretKey } from '../../utils/juncture_key_helpers/secret_key_helpers';
-import { getConnectionDetails } from '../../utils/connection_db_helpers';
 import { getAccessTokenHelper } from '../../utils/credential_helpers';
 import { getJiraConnectionDetails, getJiraSiteNameFromConnectionId, updateSelectedJiraProject } from '../../utils/integration_helpers/jira';
 import axios from 'axios';
@@ -212,3 +211,157 @@ export async function getSelectedJiraProjectId(req: Request<{}, {}, {}, GetSelec
 
     res.status(200).json({ jira_project_id: jiraConnectionDetails.selectedProjectId ?? null });
 }
+
+
+
+
+
+
+type GetJiraTicketsQueryParams = {
+    external_id: string;
+    jira_project_id?: string;
+}
+
+type GetJiraTicketsResponse = {
+    tickets: JiraTicket[];
+    total: number;
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+type JiraTicket = {
+    id: string;
+    key: string;
+    fields: {
+        summary: string;
+        description?: string;
+        status: {
+            id: string;
+            name: string;
+            statusCategory: {
+                id: number;
+                key: string;
+                colorName: string;
+            };
+        };
+        assignee?: {
+            accountId: string;
+            displayName: string;
+        };
+        reporter?: {
+            accountId: string;
+            displayName: string;
+        };
+        created: string;
+        updated: string;
+        priority?: {
+            id: string;
+            name: string;
+        };
+    };
+}
+
+/**
+ * Get all Jira tickets for a project
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.jira_project_id - (Optional) The ID of the Jira project to get tickets for. If not provided, uses the selected project.
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The tickets for the given project
+ */
+export async function getJiraTicketsForProject(req: Request<{}, {}, {}, GetJiraTicketsQueryParams>, res: Response<GetJiraTicketsResponse>) {
+    const { external_id, jira_project_id } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    // If no project ID provided in query, get the selected project
+    let projectIdToUse = jira_project_id;
+    if (!projectIdToUse) {
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        if ('error' in jiraConnectionDetails) {
+            res.status(401).json({ error: jiraConnectionDetails.error });
+            return;
+        }
+        projectIdToUse = jiraConnectionDetails.selectedProjectId ?? undefined;
+    }
+
+    if (!projectIdToUse) {
+        res.status(400).json({ error: 'No project selected and no project ID provided' });
+        return;
+    }
+
+    const siteName = await getJiraSiteNameFromConnectionId(connectionId, accessTokenResult.accessToken);
+    if ('error' in siteName) {
+        res.status(401).json({ error: siteName.error });
+        return;
+    }
+
+    try {
+        const allTickets: JiraTicket[] = [];
+        let startAt = 0;
+        const maxResults = 50; // Maximum allowed by Jira API
+        let isLastPage = false;
+
+        while (!isLastPage) {
+            const response = await axios.get(`https://${siteName.siteName}.atlassian.net/rest/api/3/search`, {
+                headers: {
+                    'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                    'Accept': 'application/json'
+                },
+                params: {
+                    jql: `project = ${projectIdToUse} ORDER BY created DESC`,
+                    startAt,
+                    maxResults,
+                    fields: 'summary,description,status,assignee,reporter,created,updated,priority'
+                }
+            });
+
+            const { issues, isLast, total } = response.data;
+            allTickets.push(...issues);
+            
+            if (isLast || allTickets.length >= total) {
+                isLastPage = true;
+            } else {
+                startAt += maxResults;
+            }
+        }
+
+        res.status(200).json({
+            tickets: allTickets,
+            total: allTickets.length
+        });
+        return;
+    } catch (error: any) {
+        console.error('Error fetching Jira tickets:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch Jira tickets',
+        });
+        return;
+    }
+}
+
+
+
+

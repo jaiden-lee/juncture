@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getJiraProjects, getSelectedJiraProjectId, selectJiraProject } from '../../controller/backend/jira.controller';
+import { getJiraProjects, getSelectedJiraProjectId, getJiraTicketsForProject, selectJiraProject } from '../../controller/backend/jira.controller';
 
 /**
  * Creates a router for connection info endpoints
@@ -13,6 +13,8 @@ export default function createJiraConnectionRouter() {
     router.post('/select-project', selectJiraProject);
     
     router.get('/get-selected-project-id', getSelectedJiraProjectId);
+
+    router.get('/get-tickets-for-project', getJiraTicketsForProject);
 
     return router;
 }
