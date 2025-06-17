@@ -765,3 +765,178 @@ export async function getJiraBoardForProject(req: Request<{}, {}, {}, GetJiraBoa
         return;
     }
 }
+
+type GetJiraTicketsForSprintQueryParams = {
+    external_id: string;
+    sprint_id: string;
+}
+
+type GetJiraTicketsForSprintResponse = {
+    tickets: JiraTicket[];
+    total: number;
+    sprint: {
+        id: number;
+        name: string;
+        state: 'future' | 'active' | 'closed';
+        startDate?: string;
+        endDate?: string;
+        completeDate?: string;
+        goal?: string;
+    };
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+/**
+ * Get Jira tickets for a specific sprint
+ * Scopes: read:sprint:jira-software
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.sprint_id - The ID of the sprint to get tickets for
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The tickets for the given sprint and sprint details
+ */
+export async function getJiraTicketsForSprint(req: Request<{}, {}, {}, GetJiraTicketsForSprintQueryParams>, res: Response<GetJiraTicketsForSprintResponse>) {
+    const { external_id, sprint_id } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    if (!sprint_id) {
+        res.status(400).json({ error: 'Missing sprint_id' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
+        return;
+    }
+    const siteId = jiraConnectionDetails.siteId;
+
+    try {
+        // First, get sprint details to verify it exists and get sprint info
+        const sprintResponse = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/sprint/${sprint_id}`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        const sprint = sprintResponse.data;
+
+        // Get tickets for the sprint
+        const allTickets: JiraTicket[] = [];
+        let startAt = 0;
+        const maxResults = 50; // Maximum allowed by Jira API
+        let isLastPage = false;
+
+        while (!isLastPage) {
+            const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/agile/1.0/sprint/${sprint_id}/issue`, {
+                headers: {
+                    'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                    'Accept': 'application/json'
+                },
+                params: {
+                    startAt,
+                    maxResults,
+                    expand: 'names,schema'
+                }
+            });
+
+            const { issues, isLast, total } = response.data;
+            
+            // Transform the issues to match our JiraTicket type
+            const transformedTickets: JiraTicket[] = issues.map((issue: any) => ({
+                id: issue.id,
+                key: issue.key,
+                fields: {
+                    summary: issue.fields.summary || '',
+                    description: issue.fields.description,
+                    status: {
+                        id: issue.fields.status.id,
+                        name: issue.fields.status.name,
+                        statusCategory: {
+                            id: issue.fields.status.statusCategory.id,
+                            key: issue.fields.status.statusCategory.key,
+                            colorName: issue.fields.status.statusCategory.colorName
+                        }
+                    },
+                    assignee: issue.fields.assignee ? {
+                        accountId: issue.fields.assignee.accountId,
+                        displayName: issue.fields.assignee.displayName
+                    } : undefined,
+                    reporter: issue.fields.reporter ? {
+                        accountId: issue.fields.reporter.accountId,
+                        displayName: issue.fields.reporter.displayName
+                    } : undefined,
+                    created: issue.fields.created,
+                    updated: issue.fields.updated,
+                    priority: issue.fields.priority ? {
+                        id: issue.fields.priority.id,
+                        name: issue.fields.priority.name
+                    } : undefined
+                }
+            }));
+
+            allTickets.push(...transformedTickets);
+            
+            if (isLast || allTickets.length >= total) {
+                isLastPage = true;
+            } else {
+                startAt += maxResults;
+            }
+        }
+
+        res.status(200).json({
+            tickets: allTickets,
+            total: allTickets.length,
+            sprint: {
+                id: sprint.id,
+                name: sprint.name,
+                state: sprint.state,
+                startDate: sprint.startDate,
+                endDate: sprint.endDate,
+                completeDate: sprint.completeDate,
+                goal: sprint.goal
+            }
+        });
+        return;
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            res.status(404).json({ error: 'Sprint not found' });
+            return;
+        }
+        if (error.response?.status === 403) {
+            res.status(403).json({ error: 'Access denied to sprint' });
+            return;
+        }
+        console.error('Error fetching Jira tickets for sprint:', error.message);
+        res.status(500).json({ 
+            error: 'Failed to fetch Jira tickets for sprint',
+        });
+        return;
+    }
+}
+
+
