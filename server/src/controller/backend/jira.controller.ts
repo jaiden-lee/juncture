@@ -1102,3 +1102,199 @@ export async function getJiraIssue(req: Request<{}, {}, {}, GetJiraIssueQueryPar
 }
 
 
+
+
+
+
+type EditJiraIssueBody = {
+    external_id: string;
+    issue_id_or_key: string;
+    summary?: string;
+    description?: string;
+    priority_id?: string;
+    issue_type_id?: string;
+    assignee_account_id?: string;
+}
+
+type EditJiraIssueResponse = {
+    success: true;
+    issue: {
+        id: string;
+        key: string;
+        summary: string;
+        description?: string;
+        priority: {
+            name: string;
+            iconUrl?: string;
+        };
+        issueType: {
+            name: string;
+            iconUrl?: string;
+        };
+        assignee?: {
+            displayName: string;
+            emailAddress?: string;
+            avatarUrl?: string;
+        };
+        updated: string;
+    };
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+/**
+ * Edit a Jira issue
+ * Scopes: write:jira-work
+ * @param req.body.external_id - The external ID of the Jira connection
+ * @param req.body.issue_id_or_key - The ID or key of the Jira issue to edit
+ * @param req.body.summary - (Optional) New summary/title for the issue
+ * @param req.body.description - (Optional) New description for the issue
+ * @param req.body.priority_id - (Optional) New priority ID for the issue
+ * @param req.body.issue_type_id - (Optional) New issue type ID for the issue
+ * @param req.body.assignee_account_id - (Optional) New assignee account ID (use "null" to unassign)
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The updated issue information
+ */
+export async function editJiraIssue(req: Request<{}, {}, EditJiraIssueBody>, res: Response<EditJiraIssueResponse>) {
+    const { external_id, issue_id_or_key, summary, description, priority_id, issue_type_id, assignee_account_id } = req.body;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    if (!issue_id_or_key) {
+        res.status(400).json({ error: 'Missing issue_id_or_key' });
+        return;
+    }
+
+    // Check if at least one field is being updated
+    if (!summary && !description && !priority_id && !issue_type_id && assignee_account_id === undefined) {
+        res.status(400).json({ error: 'At least one field must be provided for update' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
+        return;
+    }
+    const siteId = jiraConnectionDetails.siteId;
+
+    try {
+        // Build the fields object for the update
+        const fields: any = {};
+        
+        if (summary !== undefined) {
+            fields.summary = summary;
+        }
+        
+        if (description !== undefined) {
+            fields.description = description;
+        }
+        
+        if (priority_id !== undefined) {
+            fields.priority = { id: priority_id };
+        }
+        
+        if (issue_type_id !== undefined) {
+            fields.issuetype = { id: issue_type_id };
+        }
+        
+        if (assignee_account_id !== undefined) {
+            if (assignee_account_id === "null") {
+                fields.assignee = null; // Unassign
+            } else {
+                fields.assignee = { accountId: assignee_account_id };
+            }
+        }
+
+        const response = await axios.put(`https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue/${issue_id_or_key}`, {
+            fields
+        }, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // Get the updated issue details to return
+        const getIssueResponse = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue/${issue_id_or_key}`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        const issue = getIssueResponse.data;
+
+        res.status(200).json({
+            success: true,
+            issue: {
+                id: issue.id,
+                key: issue.key,
+                summary: issue.fields.summary || '',
+                description: issue.fields.description,
+                priority: {
+                    name: issue.fields.priority?.name || 'Unassigned',
+                    iconUrl: issue.fields.priority?.iconUrl
+                },
+                issueType: {
+                    name: issue.fields.issuetype.name,
+                    iconUrl: issue.fields.issuetype.iconUrl
+                },
+                assignee: issue.fields.assignee ? {
+                    displayName: issue.fields.assignee.displayName,
+                    emailAddress: issue.fields.assignee.emailAddress,
+                    avatarUrl: issue.fields.assignee.avatarUrls?.['48x48']
+                } : undefined,
+                updated: issue.fields.updated
+            }
+        });
+        return;
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            res.status(404).json({ error: 'Issue not found' });
+            return;
+        }
+        if (error.response?.status === 403) {
+            res.status(403).json({ error: 'Access denied to issue' });
+            return;
+        }
+        if (error.response?.status === 400) {
+            res.status(400).json({ error: 'Invalid field values provided' });
+            return;
+        }
+        if (error.response?.status === 409) {
+            res.status(409).json({ error: 'Issue has been modified since last read' });
+            return;
+        }
+        console.error('Error updating Jira issue:', error.message);
+        res.status(500).json({ 
+            error: 'Failed to update Jira issue',
+        });
+        return;
+    }
+}
+
+
