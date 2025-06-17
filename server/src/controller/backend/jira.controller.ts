@@ -23,18 +23,8 @@ type JiraProject = {
     id: string;
     key: string;
     name: string;
-    projectTypeKey: string;
-    simplified: boolean;
-    style: string;
-    isPrivate: boolean;
     lead: {
-        accountId: string;
         displayName: string;
-    };
-    projectCategory?: {
-        id: string;
-        name: string;
-        description: string;
     };
 }
 
@@ -97,7 +87,18 @@ export async function getJiraProjects(req: Request<{}, {}, {}, GetJiraProjectsQu
             });
 
             const { values, isLast, total } = response.data;
-            allProjects.push(...values);
+            
+            // Transform the projects to match our simplified JiraProject type
+            const transformedProjects: JiraProject[] = values.map((project: any) => ({
+                id: project.id,
+                key: project.key,
+                name: project.name,
+                lead: {
+                    displayName: project.lead.displayName
+                }
+            }));
+            
+            allProjects.push(...transformedProjects);
             
             if (isLast || allProjects.length >= total) {
                 isLastPage = true;
@@ -233,33 +234,12 @@ type GetJiraTicketsResponse = {
 type JiraTicket = {
     id: string;
     key: string;
-    fields: {
-        summary: string;
-        description?: string;
-        status: {
-            id: string;
-            name: string;
-            statusCategory: {
-                id: number;
-                key: string;
-                colorName: string;
-            };
-        };
-        assignee?: {
-            accountId: string;
-            displayName: string;
-        };
-        reporter?: {
-            accountId: string;
-            displayName: string;
-        };
-        created: string;
-        updated: string;
-        priority?: {
-            id: string;
-            name: string;
-        };
-    };
+    summary: string;
+    status: string;
+    assignee?: string;
+    priority?: string;
+    created: string;
+    updated: string;
 }
 
 /**
@@ -339,7 +319,20 @@ export async function getJiraTicketsForProject(req: Request<{}, {}, {}, GetJiraT
             });
 
             const { issues, isLast, total } = response.data;
-            allTickets.push(...issues);
+            
+            // Transform the issues to match our simplified JiraTicket type
+            const transformedTickets: JiraTicket[] = issues.map((issue: any) => ({
+                id: issue.id,
+                key: issue.key,
+                summary: issue.fields.summary || '',
+                status: issue.fields.status.name,
+                assignee: issue.fields.assignee ? issue.fields.assignee.displayName : undefined,
+                priority: issue.fields.priority ? issue.fields.priority.name : undefined,
+                created: issue.fields.created,
+                updated: issue.fields.updated
+            }));
+            
+            allTickets.push(...transformedTickets);
             
             if (isLast || allTickets.length >= total) {
                 isLastPage = true;
@@ -404,13 +397,10 @@ type GetActiveSprintsResponse = {
 
 type JiraSprint = {
     id: number;
-    self: string;
-    state: 'future' | 'active' | 'closed';
     name: string;
+    state: 'future' | 'active' | 'closed';
     startDate?: string;
     endDate?: string;
-    completeDate?: string;
-    originBoardId: number;
     goal?: string;
 }
 
@@ -663,11 +653,7 @@ type GetJiraBoardQueryParams = {
 }
 
 type GetJiraBoardResponse = {
-    boards: {
-        board_id: number;
-        board_name: string;
-        board_type: string;
-    }[];
+    boards: JiraBoard[];
     total: number;
 } | {
     error: string;
@@ -748,9 +734,9 @@ export async function getJiraBoardForProject(req: Request<{}, {}, {}, GetJiraBoa
         }
 
         const boards = boardResponse.data.values.map((board: any) => ({
-            board_id: board.id,
-            board_name: board.name,
-            board_type: board.type
+            id: board.id,
+            name: board.name,
+            type: board.type
         }));
 
         res.status(200).json({
@@ -774,15 +760,7 @@ type GetJiraTicketsForSprintQueryParams = {
 type GetJiraTicketsForSprintResponse = {
     tickets: JiraTicket[];
     total: number;
-    sprint: {
-        id: number;
-        name: string;
-        state: 'future' | 'active' | 'closed';
-        startDate?: string;
-        endDate?: string;
-        completeDate?: string;
-        goal?: string;
-    };
+    sprint: JiraSprint;
 } | {
     error: string;
 } | {
@@ -870,33 +848,12 @@ export async function getJiraTicketsForSprint(req: Request<{}, {}, {}, GetJiraTi
             const transformedTickets: JiraTicket[] = issues.map((issue: any) => ({
                 id: issue.id,
                 key: issue.key,
-                fields: {
-                    summary: issue.fields.summary || '',
-                    description: issue.fields.description,
-                    status: {
-                        id: issue.fields.status.id,
-                        name: issue.fields.status.name,
-                        statusCategory: {
-                            id: issue.fields.status.statusCategory.id,
-                            key: issue.fields.status.statusCategory.key,
-                            colorName: issue.fields.status.statusCategory.colorName
-                        }
-                    },
-                    assignee: issue.fields.assignee ? {
-                        accountId: issue.fields.assignee.accountId,
-                        displayName: issue.fields.assignee.displayName
-                    } : undefined,
-                    reporter: issue.fields.reporter ? {
-                        accountId: issue.fields.reporter.accountId,
-                        displayName: issue.fields.reporter.displayName
-                    } : undefined,
-                    created: issue.fields.created,
-                    updated: issue.fields.updated,
-                    priority: issue.fields.priority ? {
-                        id: issue.fields.priority.id,
-                        name: issue.fields.priority.name
-                    } : undefined
-                }
+                summary: issue.fields.summary || '',
+                status: issue.fields.status.name,
+                assignee: issue.fields.assignee ? issue.fields.assignee.displayName : undefined,
+                priority: issue.fields.priority ? issue.fields.priority.name : undefined,
+                created: issue.fields.created,
+                updated: issue.fields.updated
             }));
 
             allTickets.push(...transformedTickets);
@@ -917,7 +874,6 @@ export async function getJiraTicketsForSprint(req: Request<{}, {}, {}, GetJiraTi
                 state: sprint.state,
                 startDate: sprint.startDate,
                 endDate: sprint.endDate,
-                completeDate: sprint.completeDate,
                 goal: sprint.goal
             }
         });
@@ -937,6 +893,12 @@ export async function getJiraTicketsForSprint(req: Request<{}, {}, {}, GetJiraTi
         });
         return;
     }
+}
+
+type JiraBoard = {
+    id: number;
+    name: string;
+    type: string;
 }
 
 
