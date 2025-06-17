@@ -901,4 +901,204 @@ type JiraBoard = {
     type: string;
 }
 
+type DetailedJiraIssue = {
+    id: string;
+    key: string;
+    summary: string;
+    description?: string;
+    status: {
+        name: string;
+        category: string;
+    };
+    priority: {
+        name: string;
+        iconUrl?: string;
+    };
+    issueType: {
+        name: string;
+        iconUrl?: string;
+    };
+    assignee?: {
+        displayName: string;
+        emailAddress?: string;
+        avatarUrl?: string;
+    };
+    reporter?: {
+        displayName: string;
+        emailAddress?: string;
+        avatarUrl?: string;
+    };
+    project: {
+        id: string;
+        key: string;
+        name: string;
+    };
+    created: string;
+    updated: string;
+    resolution?: {
+        name: string;
+        description?: string;
+    };
+    labels: string[];
+    components: string[];
+    fixVersions: string[];
+    affectedVersions: string[];
+    timeTracking?: {
+        originalEstimate?: string;
+        remainingEstimate?: string;
+        timeSpent?: string;
+    };
+    customFields?: Record<string, any>;
+}
+
+type GetJiraIssueQueryParams = {
+    external_id: string;
+    issue_id_or_key: string;
+}
+
+type GetJiraIssueResponse = {
+    issue: DetailedJiraIssue;
+} | {
+    error: string;
+} | {
+    needs_reauthorization: true;
+    error: string;
+}
+
+/**
+ * Get detailed information for a specific Jira issue
+ * Scopes: read:jira-work
+ * @param req.query.external_id - The external ID of the Jira connection
+ * @param req.query.issue_key - The key of the Jira issue (e.g., "PROJ-123")
+ * @param req.headers.Authorization - The juncture secret key
+ * @param res.json - The detailed issue information
+ */
+export async function getJiraIssue(req: Request<{}, {}, {}, GetJiraIssueQueryParams>, res: Response<GetJiraIssueResponse>) {
+    const { external_id, issue_id_or_key } = req.query;
+    
+    if (!external_id) {
+        res.status(400).json({ error: 'Missing external_id' });
+        return;
+    }
+
+    if (!issue_id_or_key) {
+        res.status(400).json({ error: 'Missing issue_id_or_key' });
+        return;
+    }
+
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
+        return;
+    }
+    const siteId = jiraConnectionDetails.siteId;
+
+    try {
+        const response = await axios.get(`https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue/${issue_id_or_key}`, {
+            headers: {
+                'Authorization': `Bearer ${accessTokenResult.accessToken}`,
+                'Accept': 'application/json'
+            },
+            params: {
+                expand: 'names,schema,transitions,operations,editmeta,changelog,renderedFields'
+            }
+        });
+
+        const issue = response.data;
+        
+        // Extract custom fields (any field that starts with 'customfield_')
+        const customFields: Record<string, any> = {};
+        Object.keys(issue.fields).forEach(fieldKey => {
+            if (fieldKey.startsWith('customfield_') && issue.fields[fieldKey] !== null) {
+                customFields[fieldKey] = issue.fields[fieldKey];
+            }
+        });
+
+        const detailedIssue: DetailedJiraIssue = {
+            id: issue.id,
+            key: issue.key,
+            summary: issue.fields.summary || '',
+            description: issue.fields.description,
+            status: {
+                name: issue.fields.status.name,
+                category: issue.fields.status.statusCategory.key
+            },
+            priority: {
+                name: issue.fields.priority?.name || 'Unassigned',
+                iconUrl: issue.fields.priority?.iconUrl
+            },
+            issueType: {
+                name: issue.fields.issuetype.name,
+                iconUrl: issue.fields.issuetype.iconUrl
+            },
+            assignee: issue.fields.assignee ? {
+                displayName: issue.fields.assignee.displayName,
+                emailAddress: issue.fields.assignee.emailAddress,
+                avatarUrl: issue.fields.assignee.avatarUrls?.['48x48']
+            } : undefined,
+            reporter: issue.fields.reporter ? {
+                displayName: issue.fields.reporter.displayName,
+                emailAddress: issue.fields.reporter.emailAddress,
+                avatarUrl: issue.fields.reporter.avatarUrls?.['48x48']
+            } : undefined,
+            project: {
+                id: issue.fields.project.id,
+                key: issue.fields.project.key,
+                name: issue.fields.project.name
+            },
+            created: issue.fields.created,
+            updated: issue.fields.updated,
+            resolution: issue.fields.resolution ? {
+                name: issue.fields.resolution.name,
+                description: issue.fields.resolution.description
+            } : undefined,
+            labels: issue.fields.labels || [],
+            components: (issue.fields.components || []).map((comp: any) => comp.name),
+            fixVersions: (issue.fields.fixVersions || []).map((version: any) => version.name),
+            affectedVersions: (issue.fields.versions || []).map((version: any) => version.name),
+            timeTracking: issue.fields.timetracking ? {
+                originalEstimate: issue.fields.timetracking.originalEstimate,
+                remainingEstimate: issue.fields.timetracking.remainingEstimate,
+                timeSpent: issue.fields.timetracking.timeSpent
+            } : undefined,
+            customFields: Object.keys(customFields).length > 0 ? customFields : undefined
+        };
+
+        res.status(200).json({
+            issue: detailedIssue
+        });
+        return;
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            res.status(404).json({ error: 'Issue not found' });
+            return;
+        }
+        if (error.response?.status === 403) {
+            res.status(403).json({ error: 'Access denied to issue' });
+            return;
+        }
+        console.error('Error fetching Jira issue:', error.message);
+        res.status(500).json({ 
+            error: 'Failed to fetch Jira issue',
+        });
+        return;
+    }
+}
+
 
