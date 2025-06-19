@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { getConnectionIDFromSecretKey } from '../../utils/juncture_key_helpers/secret_key_helpers';
-import { getAccessTokenHelper } from '../../utils/credential_helpers';
-import { getJiraConnectionDetails, updateSelectedJiraProject } from '../../utils/integration_helpers/jira';
+import { getConnectionIDFromSecretKey } from '../../../utils/juncture_key_helpers/secret_key_helpers';
+import { getAccessTokenHelper } from '../../../utils/credential_helpers';
+import { getJiraConnectionDetails, updateSelectedJiraProject } from '../../../utils/integration_helpers/jira';
 import axios from 'axios';
 
 export type GetJiraProjectsQueryParams = {
