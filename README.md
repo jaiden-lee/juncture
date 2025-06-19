@@ -450,18 +450,8 @@ HTTP 200 response:
             "id": "10000",
             "key": "PROJ",
             "name": "Example Project",
-            "projectTypeKey": "software",
-            "simplified": false,
-            "style": "classic",
-            "isPrivate": false,
             "lead": {
-                "accountId": "5b10a2844c20165700ede21g",
                 "displayName": "John Doe"
-            },
-            "projectCategory": {
-                "id": "10000",
-                "name": "Development",
-                "description": "Development projects"
             }
         }
     ],
@@ -469,7 +459,6 @@ HTTP 200 response:
     "selected_project_id": "10000"
 }
 ```
-Note: `selected_project_id` will be `null` if no project has been selected.
 
 HTTP 400 response:
 ```json
@@ -678,36 +667,23 @@ HTTP 200 response:
         {
             "id": "10000",
             "key": "PROJ-1",
-            "fields": {
-                "summary": "Example Ticket",
-                "description": "This is an example ticket",
-                "status": {
-                    "id": "10000",
-                    "name": "To Do",
-                    "statusCategory": {
-                        "id": 2,
-                        "key": "new",
-                        "colorName": "blue-gray"
-                    }
-                },
-                "assignee": {
-                    "accountId": "5b10a2844c20165700ede21g",
-                    "displayName": "John Doe"
-                },
-                "reporter": {
-                    "accountId": "5b10a2844c20165700ede21g",
-                    "displayName": "John Doe"
-                },
-                "created": "2024-01-01T00:00:00.000Z",
-                "updated": "2024-01-01T00:00:00.000Z",
-                "priority": {
-                    "id": "3",
-                    "name": "Medium"
-                }
-            }
+            "summary": "Example Ticket",
+            "status": "To Do",
+            "assignee": "John Doe",
+            "priority": "Medium",
+            "created": "2024-01-01T00:00:00.000Z",
+            "updated": "2024-01-01T00:00:00.000Z"
         }
     ],
-    "total": 1
+    "total": 1,
+    "sprint": {
+        "id": 10000,
+        "name": "Sprint 1",
+        "state": "active",
+        "startDate": "2024-01-01T00:00:00.000Z",
+        "endDate": "2024-01-14T00:00:00.000Z",
+        "goal": "Complete initial features"
+    }
 }
 ```
 
@@ -802,14 +778,14 @@ HTTP 200 response:
 {
     "boards": [
         {
-            "board_id": 10000,
-            "board_name": "Example Board",
-            "board_type": "scrum"
+            "id": 10000,
+            "name": "Example Board",
+            "type": "scrum"
         },
         {
-            "board_id": 10001,
-            "board_name": "Example Kanban Board",
-            "board_type": "kanban"
+            "id": 10001,
+            "name": "Example Kanban Board",
+            "type": "kanban"
         }
     ],
     "total": 2
@@ -916,26 +892,20 @@ HTTP 200 response:
             "sprints": [
                 {
                     "id": 10000,
-                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
-                    "state": "active",
                     "name": "Sprint 1",
+                    "state": "active",
                     "startDate": "2024-01-01T00:00:00.000Z",
                     "endDate": "2024-01-14T00:00:00.000Z",
-                    "completeDate": null,
-                    "originBoardId": 10000,
                     "goal": "Complete initial features"
                 }
             ],
             "active_sprints": [
                 {
                     "id": 10000,
-                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
-                    "state": "active",
                     "name": "Sprint 1",
+                    "state": "active",
                     "startDate": "2024-01-01T00:00:00.000Z",
                     "endDate": "2024-01-14T00:00:00.000Z",
-                    "completeDate": null,
-                    "originBoardId": 10000,
                     "goal": "Complete initial features"
                 }
             ]
@@ -1051,13 +1021,10 @@ HTTP 200 response:
             "active_sprints": [
                 {
                     "id": 10000,
-                    "self": "https://your-domain.atlassian.net/rest/agile/1.0/sprint/10000",
-                    "state": "active",
                     "name": "Sprint 1",
+                    "state": "active",
                     "startDate": "2024-01-01T00:00:00.000Z",
                     "endDate": "2024-01-14T00:00:00.000Z",
-                    "completeDate": null,
-                    "originBoardId": 10000,
                     "goal": "Complete initial features"
                 }
             ]
@@ -1151,6 +1118,547 @@ if (response.status === 403) {
             displayActiveSprints(board);
         }
     });
+}
+```
+
+#### `GET /api/backend/jira/get-tickets-for-sprint`
+##### Required Scopes
+- `read:sprint:jira-software`
+- `read:issue-details:jira`
+- `read:jql:jira`
+
+##### Returns
+HTTP 200 response:
+```json
+{
+    "tickets": [
+        {
+            "id": "10000",
+            "key": "PROJ-1",
+            "fields": {
+                "summary": "Example Ticket",
+                "description": "This is an example ticket",
+                "status": {
+                    "id": "10000",
+                    "name": "To Do",
+                    "statusCategory": {
+                        "id": 2,
+                        "key": "new",
+                        "colorName": "blue-gray"
+                    }
+                },
+                "assignee": {
+                    "accountId": "5b10a2844c20165700ede21g",
+                    "displayName": "John Doe"
+                },
+                "reporter": {
+                    "accountId": "5b10a2844c20165700ede21g",
+                    "displayName": "John Doe"
+                },
+                "created": "2024-01-01T00:00:00.000Z",
+                "updated": "2024-01-01T00:00:00.000Z",
+                "priority": {
+                    "id": "3",
+                    "name": "Medium"
+                }
+            }
+        }
+    ],
+    "total": 1,
+    "sprint": {
+        "id": 10000,
+        "name": "Sprint 1",
+        "state": "active",
+        "startDate": "2024-01-01T00:00:00.000Z",
+        "endDate": "2024-01-14T00:00:00.000Z",
+        "completeDate": null,
+        "goal": "Complete initial features"
+    }
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "Missing sprint_id"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "Sprint not found"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira tickets for sprint"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) sprint_id: The ID of the sprint to get tickets for
+    - This is the sprint ID returned from the sprint endpoints
+    - Example: 10000
+
+##### Description
+This endpoint retrieves all tickets for a specific sprint. The endpoint handles pagination automatically and returns all tickets in a single response. Each ticket includes detailed information such as:
+- Ticket ID and key
+- Summary and description
+- Status information
+- Assignee and reporter details
+- Creation and update timestamps
+- Priority information
+
+The response also includes sprint details:
+- Sprint ID, name, and state (future, active, or closed)
+- Start and end dates
+- Completion date (if closed)
+- Sprint goal
+
+Use this endpoint to:
+- List all tickets in a specific sprint
+- Get detailed ticket information for sprint planning
+- Track sprint progress and ticket status
+- Monitor sprint completion and goals
+
+Example use case:
+```typescript
+// Get all tickets for a specific sprint
+const response = await fetch('/api/backend/jira/get-tickets-for-sprint?external_id=project123&sprint_id=10000', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { tickets, sprint } = await response.json();
+    // Display tickets and sprint information
+    displaySprintTickets(tickets, sprint);
+}
+```
+
+#### `GET /api/backend/jira/get-issue-details`
+##### Required Scopes
+- `read:jira-work`
+
+##### Returns
+HTTP 200 response:
+```json
+{
+    "issue": {
+        "id": "10000",
+        "key": "PROJ-123",
+        "summary": "Fix critical bug in login system",
+        "description": "Users are unable to log in when using SSO authentication",
+        "status": {
+            "name": "In Progress",
+            "category": "indeterminate"
+        },
+        "priority": {
+            "name": "High",
+            "iconUrl": "https://your-domain.atlassian.net/images/icons/priorities/high.svg"
+        },
+        "issueType": {
+            "name": "Bug",
+            "iconUrl": "https://your-domain.atlassian.net/images/icons/issuetypes/bug.svg"
+        },
+        "assignee": {
+            "displayName": "John Doe",
+            "emailAddress": "john.doe@example.com",
+            "avatarUrl": "https://avatar-management--avatars.server-location.prod.public.atl-paas.net/initials/JD-5.png?size=48&s=48"
+        },
+        "reporter": {
+            "displayName": "Jane Smith",
+            "emailAddress": "jane.smith@example.com",
+            "avatarUrl": "https://avatar-management--avatars.server-location.prod.public.atl-paas.net/initials/JS-5.png?size=48&s=48"
+        },
+        "project": {
+            "id": "10000",
+            "key": "PROJ",
+            "name": "Example Project"
+        },
+        "created": "2024-01-01T10:00:00.000Z",
+        "updated": "2024-01-02T15:30:00.000Z",
+        "resolution": {
+            "name": "Fixed",
+            "description": "A resolution was provided and the issue is now being resolved."
+        },
+        "labels": ["bug", "critical", "authentication"],
+        "components": ["Frontend", "Authentication"],
+        "fixVersions": ["v2.1.0"],
+        "affectedVersions": ["v2.0.0"],
+        "timeTracking": {
+            "originalEstimate": "4h",
+            "remainingEstimate": "1h",
+            "timeSpent": "3h"
+        },
+        "customFields": {
+            "customfield_10001": "High",
+            "customfield_10002": "Security"
+        }
+    }
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "Missing issue_id_or_key"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "Issue not found"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to fetch Jira issue"
+}
+```
+
+##### Query Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) issue_id_or_key: The key of the Jira issue to get details for
+    - This is the issue key (e.g., "PROJ-123", "BUG-456")
+    - You can also pass in the issue ID instead (e.g., "10000", "10004")
+    - Example: "PROJ-123", "10033"
+
+##### Description
+This endpoint retrieves detailed information for a specific Jira issue. Unlike the ticket list endpoints, this provides comprehensive information about a single issue including:
+
+**Core Information:**
+- Issue ID, key, summary, and description
+- Status with category (new, indeterminate, done)
+- Priority and issue type with icons
+- Project information
+
+**People:**
+- Assignee and reporter details with email addresses and avatars
+- Contact information for notifications and workflows
+
+**Metadata:**
+- Creation and update timestamps
+- Resolution details (if resolved)
+- Labels, components, and version information
+- Time tracking data (estimates and time spent)
+
+**Custom Fields:**
+- Any custom fields configured for the issue
+- Useful for integrations that need specific business data
+
+**Use Cases:**
+- Display detailed issue information in dashboards
+- Create issue detail views
+- Build notification systems
+- Generate reports with comprehensive issue data
+- Integrate with project management tools
+
+Example use case:
+```typescript
+// Get detailed information for a specific issue
+const response = await fetch('/api/backend/jira/get-issue?external_id=project123&issue_key=PROJ-123', {
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}'
+    }
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { issue } = await response.json();
+    // Display detailed issue information
+    displayIssueDetails(issue);
+    
+    // Use specific fields for integrations
+    if (issue.assignee) {
+        sendNotification(issue.assignee.emailAddress, issue.summary);
+    }
+    
+    if (issue.timeTracking) {
+        updateTimeTracking(issue.key, issue.timeTracking);
+    }
+}
+```
+
+#### `PUT /api/backend/jira/edit-issue`
+##### Required Scopes
+- `write:jira-work`
+
+##### Returns
+HTTP 200 response:
+```json
+{
+    "success": true,
+    "issue": {
+        "id": "10000",
+        "key": "PROJ-123",
+        "summary": "Updated issue summary",
+        "description": "Updated issue description",
+        "priority": {
+            "name": "High",
+            "iconUrl": "https://your-domain.atlassian.net/images/icons/priorities/high.svg"
+        },
+        "issueType": {
+            "name": "Bug",
+            "iconUrl": "https://your-domain.atlassian.net/images/icons/issuetypes/bug.svg"
+        },
+        "assignee": {
+            "displayName": "John Doe",
+            "emailAddress": "john.doe@example.com",
+            "avatarUrl": "https://avatar-management--avatars.server-location.prod.public.atl-paas.net/initials/JD-5.png?size=48&s=48"
+        },
+        "updated": "2024-01-02T16:45:00.000Z"
+    }
+}
+```
+
+HTTP 400 response:
+```json
+{
+    "error": "Missing external_id"
+}
+```
+or
+```json
+{
+    "error": "Missing issue_id_or_key"
+}
+```
+or
+```json
+{
+    "error": "At least one field must be provided for update"
+}
+```
+or
+```json
+{
+    "error": "Invalid field values provided"
+}
+```
+
+HTTP 401 response:
+```json
+{
+    "error": "Invalid secret key"
+}
+```
+
+HTTP 403 response:
+```json
+{
+    "error": "Connection is invalid or expired. Please reauthorize the connection.",
+    "needs_reauthorization": true
+}
+```
+
+HTTP 404 response:
+```json
+{
+    "error": "Issue not found"
+}
+```
+
+HTTP 409 response:
+```json
+{
+    "error": "Issue has been modified since last read"
+}
+```
+
+HTTP 500 response:
+```json
+{
+    "error": "Failed to update Jira issue"
+}
+```
+
+##### Request Body
+```json
+{
+    "external_id": "project123",
+    "issue_id_or_key": "PROJ-123",
+    "summary": "Updated issue summary",
+    "description": "Updated issue description",
+    "priority_id": "3",
+    "issue_type_id": "10001",
+    "assignee_account_id": "5b10a2844c20165700ede21g"
+}
+```
+
+##### Request Body Parameters
+- (Required) external_id: The external ID you used when creating the connection
+    - This is the same external_id you passed in during the OAuth flow
+    - Example: If you used a project_id as the external_id, pass that same project_id here
+- (Required) issue_id_or_key: The ID or key of the Jira issue to edit
+    - This is the issue key (e.g., "PROJ-123") or issue ID (e.g., "10000")
+    - Example: "PROJ-123", "10033"
+- (Optional) summary: New summary/title for the issue
+    - Example: "Fix critical bug in login system"
+- (Optional) description: New description for the issue
+    - Example: "Users are unable to log in when using SSO authentication"
+- (Optional) priority_id: New priority ID for the issue
+    - Common values: "1" (Highest), "2" (High), "3" (Medium), "4" (Low), "5" (Lowest)
+    - Example: "3"
+- (Optional) issue_type_id: New issue type ID for the issue
+    - Common values: "10001" (Bug), "10002" (Task), "10003" (Story), "10004" (Epic)
+    - Example: "10001"
+- (Optional) assignee_account_id: New assignee account ID
+    - Use the account ID of the user to assign
+    - Use "null" to unassign the issue
+    - Example: "5b10a2844c20165700ede21g" or "null"
+
+##### Description
+This endpoint allows you to edit a Jira issue by updating one or more fields. You can update the summary, description, priority, issue type, and assignee. At least one field must be provided for the update to succeed.
+
+**Supported Fields:**
+- **Summary**: The title/name of the issue
+- **Description**: The detailed description of the issue
+- **Priority**: The priority level (Highest, High, Medium, Low, Lowest)
+- **Issue Type**: The type of issue (Bug, Task, Story, Epic, etc.)
+- **Assignee**: The user assigned to work on the issue
+
+**Use Cases:**
+- Update issue details from external systems
+- Reassign issues to different team members
+- Change issue priorities based on business rules
+- Modify issue types as requirements change
+- Update descriptions with additional context
+
+**Examples:**
+
+1. **Update Summary Only:**
+```json
+{
+    "external_id": "project123",
+    "issue_id_or_key": "PROJ-123",
+    "summary": "Updated issue title"
+}
+```
+
+2. **Change Priority and Assignee:**
+```json
+{
+    "external_id": "project123",
+    "issue_id_or_key": "PROJ-123",
+    "priority_id": "2",
+    "assignee_account_id": "5b10a2844c20165700ede21g"
+}
+```
+
+3. **Unassign an Issue:**
+```json
+{
+    "external_id": "project123",
+    "issue_id_or_key": "PROJ-123",
+    "assignee_account_id": "null"
+}
+```
+
+4. **Update Multiple Fields:**
+```json
+{
+    "external_id": "project123",
+    "issue_id_or_key": "PROJ-123",
+    "summary": "Critical bug fix needed",
+    "description": "This is a critical issue that needs immediate attention",
+    "priority_id": "1",
+    "issue_type_id": "10001"
+}
+```
+
+Example use case:
+```typescript
+// Update issue priority and assignee
+const response = await fetch('/api/backend/jira/edit-issue', {
+    method: 'PUT',
+    headers: {
+        'Authorization': 'Bearer {juncture_secret_key}',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        external_id: 'project123',
+        issue_id_or_key: 'PROJ-123',
+        priority_id: '2',
+        assignee_account_id: '5b10a2844c20165700ede21g'
+    })
+});
+
+if (response.status === 403) {
+    const data = await response.json();
+    if (data.needs_reauthorization) {
+        // Start reauthorization flow
+        startReauthorizationFlow();
+    }
+} else if (response.ok) {
+    const { issue } = await response.json();
+    // Issue updated successfully
+    console.log(`Issue ${issue.key} updated at ${issue.updated}`);
 }
 ```
 
@@ -1296,3 +1804,15 @@ For a complete example, look at how Jira is implemented:
 - `server/src/db/schema.ts` for the database schema
 - `server/src/utils/credential_helpers.ts` for token management
 - `server/src/routes/backend/jira.route.ts` for provider-specific routes
+
+## Backend Controller Structure (Jira)
+
+Jira-related backend endpoints are now organized in a modular folder:
+- `jira.controller/`: Folder containing all Jira controller logic.
+  - `index.ts`: Central export file for all Jira endpoints. This is the main entrypoint for route imports.
+  - `projects.ts`: Contains all project-related endpoint handlers and types.
+  - `tickets.ts`: Contains all ticket/issue-related endpoint handlers and types.
+  - `sprints.ts`: Contains all sprint-related endpoint handlers and types.
+  - `boards.ts`: Contains all board-related endpoint handlers and types.
+
+This structure makes it easier to maintain and extend Jira integration logic.
