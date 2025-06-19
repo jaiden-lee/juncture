@@ -19,6 +19,7 @@ export {
   getJiraTicketsForSprint,
   getJiraIssue,
   editJiraIssue,
+  createJiraTicket,
   GetJiraTicketsQueryParams,
   GetJiraTicketsResponse,
   JiraTicket,
@@ -28,7 +29,9 @@ export {
   GetJiraIssueResponse,
   DetailedJiraIssue,
   EditJiraIssueBody,
-  EditJiraIssueResponse
+  EditJiraIssueResponse,
+  CreateJiraTicketBody,
+  CreateJiraTicketResponse
 } from './tickets';
 
 export {

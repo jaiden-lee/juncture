@@ -550,4 +550,134 @@ export async function editJiraIssue(req: Request<{}, {}, EditJiraIssueBody>, res
         res.status(500).json({ error: 'Failed to update Jira issue' });
         return;
     }
+}
+
+export type CreateJiraTicketBody = {
+    external_id: string;
+    jira_project_id?: string;
+    summary: string;
+    description?: string;
+    issue_type_id: string;
+    priority_id?: string;
+    assignee_account_id?: string;
+};
+
+export type CreateJiraTicketResponse =
+    | {
+          ticket: JiraTicket;
+      }
+    | { error: string }
+    | { needs_reauthorization: true; error: string };
+
+export async function createJiraTicket(
+    req: Request<{}, {}, CreateJiraTicketBody>,
+    res: Response<CreateJiraTicketResponse>
+) {
+    const {
+        external_id,
+        jira_project_id,
+        summary,
+        description,
+        issue_type_id,
+        priority_id,
+        assignee_account_id,
+    } = req.body;
+    if (!external_id || !summary || !issue_type_id) {
+        res.status(400).json({ error: 'Missing required fields: external_id, summary, or issue_type_id' });
+        return;
+    }
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+    let projectIdToUse = jira_project_id;
+    if (!projectIdToUse) {
+        const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+        if ('error' in jiraConnectionDetails) {
+            res.status(401).json({ error: jiraConnectionDetails.error });
+            return;
+        }
+        projectIdToUse = jiraConnectionDetails.selectedProjectId ?? undefined;
+    }
+    if (!projectIdToUse) {
+        res.status(400).json({ error: 'No project selected and no project ID provided' });
+        return;
+    }
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
+        return;
+    }
+    const siteId = jiraConnectionDetails.siteId;
+    try {
+        const fields: any = {
+            project: { id: projectIdToUse },
+            summary,
+            issuetype: { id: issue_type_id },
+        };
+        if (description !== undefined) fields.description = description;
+        if (priority_id !== undefined) fields.priority = { id: priority_id };
+        if (assignee_account_id !== undefined) fields.assignee = { accountId: assignee_account_id };
+        const response = await axios.post(
+            `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue`,
+            { fields },
+            {
+                headers: {
+                    Authorization: `Bearer ${accessTokenResult.accessToken}`,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+        const issue = response.data;
+        // Fetch the created issue to get all fields in a consistent format
+        const getIssueResponse = await axios.get(
+            `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue/${issue.id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${accessTokenResult.accessToken}`,
+                    Accept: 'application/json',
+                },
+            }
+        );
+        const created = getIssueResponse.data;
+        const ticket: JiraTicket = {
+            id: created.id,
+            key: created.key,
+            summary: created.fields.summary || '',
+            status: created.fields.status.name,
+            assignee: created.fields.assignee ? created.fields.assignee.displayName : undefined,
+            priority: created.fields.priority ? created.fields.priority.name : undefined,
+            created: created.fields.created,
+            updated: created.fields.updated,
+        };
+        res.status(201).json({ ticket });
+        return;
+    } catch (error: any) {
+        if (error.response?.status === 400) {
+            res.status(400).json({ error: 'Invalid field values or missing required fields for Jira issue creation' });
+            return;
+        }
+        if (error.response?.status === 403) {
+            res.status(403).json({ error: 'Access denied to create issue' });
+            return;
+        }
+        if (error.response?.status === 404) {
+            res.status(404).json({ error: 'Project or issue type not found' });
+            return;
+        }
+        console.error('Error creating Jira ticket:', error.message);
+        res.status(500).json({ error: 'Failed to create Jira ticket' });
+        return;
+    }
 } 

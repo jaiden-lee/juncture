@@ -1718,6 +1718,117 @@ if (response.status === 403) {
 #
 </details>
 
+#### `POST /api/backend/jira/create-ticket`
+<details>
+
+##### Required Scopes
+- `write:jira-work`
+
+##### Body
+- (Required) external_id: The external ID you used when creating the connection
+- (Optional) jira_project_id: The Jira project ID to create the ticket in (if not provided, uses the selected project)
+- (Required) summary: The summary/title of the ticket
+- (Optional) description: The description of the ticket
+- (Required) issue_type_id: The Jira issue type ID (e.g., Task, Bug, Story)
+- (Optional) priority_id: The Jira priority ID
+- (Optional) assignee_account_id: The Jira account ID of the assignee
+
+Example body:
+```json
+{
+  "external_id": "project123",
+  "jira_project_id": "10000",
+  "summary": "New ticket from API",
+  "description": "This ticket was created via the Juncture API.",
+  "issue_type_id": "10001",
+  "priority_id": "3",
+  "assignee_account_id": "5b10a2844c20165700ede21g"
+}
+```
+
+##### Returns
+HTTP 201 response:
+```json
+{
+  "ticket": {
+    "id": "10001",
+    "key": "PROJ-2",
+    "summary": "New ticket from API",
+    "status": "To Do",
+    "assignee": "John Doe",
+    "priority": "Medium",
+    "created": "2024-01-01T00:00:00.000Z",
+    "updated": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+HTTP 400 response:
+```json
+{ "error": "Missing required fields: external_id, summary, or issue_type_id" }
+```
+Or
+```json
+{ "error": "Invalid field values or missing required fields for Jira issue creation" }
+```
+Or
+```json
+{ "error": "No project selected and no project ID provided" }
+```
+
+HTTP 401 response:
+```json
+{ "error": "Invalid secret key" }
+```
+
+HTTP 403 response:
+```json
+{ "error": "Access denied to create issue" }
+```
+Or
+```json
+{ "error": "Connection is invalid or expired. Please reauthorize the connection.", "needs_reauthorization": true }
+```
+
+HTTP 404 response:
+```json
+{ "error": "Project or issue type not found" }
+```
+
+HTTP 500 response:
+```json
+{ "error": "Failed to create Jira ticket" }
+```
+
+##### Description
+This endpoint creates a new Jira ticket (issue) in the specified or selected project. You must provide the summary and issue type ID. Optionally, you can set the description, priority, and assignee. The endpoint returns the created ticket's key, id, summary, status, assignee, priority, created, and updated fields.
+
+Example use case:
+```typescript
+const response = await fetch('/api/backend/jira/create-ticket', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer {juncture_secret_key}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    external_id: 'project123',
+    jira_project_id: '10000',
+    summary: 'New ticket from API',
+    description: 'This ticket was created via the Juncture API.',
+    issue_type_id: '10001',
+    priority_id: '3',
+    assignee_account_id: '5b10a2844c20165700ede21g'
+  })
+});
+if (response.status === 201) {
+  const { ticket } = await response.json();
+  // Use the created ticket
+}
+```
+#
+</details>
+
 
 # Database Schema
 **connection(<u>connection_id</u>, refresh_token, invalid_refresh_token, expires_at, created_at, last_updated)**

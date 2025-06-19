@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getJiraProjects, getSelectedJiraProjectId, getJiraTicketsForProject, selectJiraProject, getJiraBoardForProject, getAllSprintsForProject, getActiveSprintsPerProject, getJiraTicketsForSprint, getJiraIssue, editJiraIssue } from '../../controller/backend/jira.controller/index';
+import { getJiraProjects, getSelectedJiraProjectId, getJiraTicketsForProject, selectJiraProject, getJiraBoardForProject, getAllSprintsForProject, getActiveSprintsPerProject, getJiraTicketsForSprint, getJiraIssue, editJiraIssue, createJiraTicket } from '../../controller/backend/jira.controller/index';
 
 /**
  * Creates a router for connection info endpoints
@@ -15,6 +15,8 @@ export default function createJiraConnectionRouter() {
     router.get('/get-selected-project-id', getSelectedJiraProjectId);
 
     router.get('/get-tickets-for-project', getJiraTicketsForProject);
+
+    router.post('/create-ticket', createJiraTicket);
 
     router.get('/get-boards-for-project', getJiraBoardForProject);
     
