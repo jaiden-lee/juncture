@@ -20,6 +20,7 @@ export {
   getJiraIssue,
   editJiraIssue,
   createJiraTicket,
+  deleteJiraIssue,
   GetJiraTicketsQueryParams,
   GetJiraTicketsResponse,
   JiraTicket,
@@ -31,7 +32,9 @@ export {
   EditJiraIssueBody,
   EditJiraIssueResponse,
   CreateJiraTicketBody,
-  CreateJiraTicketResponse
+  CreateJiraTicketResponse,
+  DeleteJiraIssueBody,
+  DeleteJiraIssueResponse
 } from './tickets';
 
 export {

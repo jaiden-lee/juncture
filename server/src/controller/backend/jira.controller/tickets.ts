@@ -680,4 +680,78 @@ export async function createJiraTicket(
         res.status(500).json({ error: 'Failed to create Jira ticket' });
         return;
     }
+}
+
+export type DeleteJiraIssueBody = {
+    external_id: string;
+    issue_id_or_key: string;
+};
+
+export type DeleteJiraIssueResponse =
+    | { success: true }
+    | { error: string }
+    | { needs_reauthorization: true; error: string };
+
+export async function deleteJiraIssue(
+    req: Request<{}, {}, DeleteJiraIssueBody>,
+    res: Response<DeleteJiraIssueResponse>
+) {
+    const { external_id, issue_id_or_key } = req.body;
+    if (!external_id || !issue_id_or_key) {
+        res.status(400).json({ error: 'Missing required fields: external_id or issue_id_or_key' });
+        return;
+    }
+    const { connectionId, projectId, error } = await getConnectionIDFromSecretKey(req, external_id, 'jira');
+    if (!connectionId) {
+        res.status(401).json({ error: error! });
+        return;
+    }
+    const accessTokenResult = await getAccessTokenHelper(connectionId, 'jira', projectId);
+    if ('needs_reauthorization' in accessTokenResult) {
+        res.status(403).json({ error: accessTokenResult.error, needs_reauthorization: true });
+        return;
+    }
+    if ('error' in accessTokenResult) {
+        res.status(401).json({ error: accessTokenResult.error });
+        return;
+    }
+    const jiraConnectionDetails = await getJiraConnectionDetails(connectionId);
+    if ('error' in jiraConnectionDetails) {
+        res.status(401).json({ error: jiraConnectionDetails.error });
+        return;
+    }
+    const siteId = jiraConnectionDetails.siteId;
+    try {
+        await axios.delete(
+            `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/issue/${issue_id_or_key}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${accessTokenResult.accessToken}`,
+                    Accept: 'application/json',
+                },
+            }
+        );
+        res.status(204).json({ success: true });
+        return;
+    } catch (error: any) {
+        if (error.response?.status === 400) {
+            res.status(400).json({ error: 'Invalid issue id or key' });
+            return;
+        }
+        if (error.response?.status === 401) {
+            res.status(401).json({ error: 'Invalid secret key' });
+            return;
+        }
+        if (error.response?.status === 403) {
+            res.status(403).json({ error: 'Access denied to delete issue' });
+            return;
+        }
+        if (error.response?.status === 404) {
+            res.status(404).json({ error: 'Issue not found' });
+            return;
+        }
+        console.error('Error deleting Jira issue:', error.message);
+        res.status(500).json({ error: 'Failed to delete Jira issue' });
+        return;
+    }
 } 

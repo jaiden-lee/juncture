@@ -1829,6 +1829,86 @@ if (response.status === 201) {
 #
 </details>
 
+#### `DELETE /api/backend/jira/delete-issue`
+<details>
+
+##### Required Scopes
+- `write:jira-work`
+
+##### Body
+- (Required) external_id: The external ID you used when creating the connection
+- (Required) issue_id_or_key: The Jira issue key or id to delete (e.g., "PROJ-123" or "10001")
+
+Example body:
+```json
+{
+  "external_id": "project123",
+  "issue_id_or_key": "PROJ-2"
+}
+```
+
+##### Returns
+HTTP 204 response:
+```json
+{ "success": true }
+```
+
+HTTP 400 response:
+```json
+{ "error": "Missing required fields: external_id or issue_id_or_key" }
+```
+Or
+```json
+{ "error": "Invalid issue id or key" }
+```
+
+HTTP 401 response:
+```json
+{ "error": "Invalid secret key" }
+```
+
+HTTP 403 response:
+```json
+{ "error": "Access denied to delete issue" }
+```
+Or
+```json
+{ "error": "Connection is invalid or expired. Please reauthorize the connection.", "needs_reauthorization": true }
+```
+
+HTTP 404 response:
+```json
+{ "error": "Issue not found" }
+```
+
+HTTP 500 response:
+```json
+{ "error": "Failed to delete Jira issue" }
+```
+
+##### Description
+This endpoint deletes a Jira issue (ticket) by its key or id, using the [Jira Cloud REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-delete). You must provide the external_id and the issue_id_or_key. Returns 204 and success on success, or an error message otherwise.
+
+Example use case:
+```typescript
+const response = await fetch('/api/backend/jira/delete-issue', {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer {juncture_secret_key}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    external_id: 'project123',
+    issue_id_or_key: 'PROJ-2'
+  })
+});
+if (response.status === 204) {
+  // Issue deleted successfully
+}
+```
+#
+</details>
+
 
 # Database Schema
 **connection(<u>connection_id</u>, refresh_token, invalid_refresh_token, expires_at, created_at, last_updated)**
