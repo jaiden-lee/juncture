@@ -142,7 +142,7 @@ The OAuth callback is handled automatically by the Juncture backend. After the u
 
 ## Backend SDK
 
-The `JunctureBackend` class provides a secure way to interact with Juncture's backend API routes, including connection management, Jira operations, and credential handling.
+The `JunctureBackend` class provides a secure way to interact with Juncture's backend API routes, including connection management, Jira operations, and credential handling. The SDK uses a namespaced structure for better organization.
 
 ### Basic Usage
 
@@ -164,6 +164,181 @@ const juncture = new JunctureBackend({
 |-----------|------|----------|-------------|
 | `junctureApiUrl` | string | Yes | Base URL for the Juncture API |
 | `junctureSecretKey` | string | Yes | Secret key for backend authentication |
+
+### Backend SDK Methods (Namespaced)
+
+The backend SDK organizes methods into namespaces for better discoverability and organization:
+
+#### General Namespace (`juncture.general.*`)
+
+##### `checkConnectionValidity(request)`
+Check if a connection exists and whether it's expired.
+
+```typescript
+const status = await juncture.general.checkConnectionValidity({
+  externalId: 'project-123',
+  provider: 'jira'
+});
+
+if (status.exists && !status.isInvalid) {
+  console.log('Connection is valid until:', status.expiresAt);
+}
+```
+
+##### `getAccessToken(request)`
+Get an access token for making API calls (recommended method).
+
+```typescript
+const token = await juncture.general.getAccessToken({
+  externalId: 'project-123',
+  provider: 'jira'
+});
+
+console.log('Access token:', token.accessToken);
+console.log('Expires at:', token.expiresAt);
+```
+
+##### `getConnectionCredentials(request)`
+Get connection credentials (refresh token and expiry info).
+
+```typescript
+const credentials = await juncture.general.getConnectionCredentials({
+  externalId: 'project-123',
+  provider: 'jira'
+});
+
+console.log('Refresh token:', credentials.refreshToken);
+console.log('Expires at:', credentials.expiresAt);
+```
+
+**Note**: It's recommended to use `getAccessToken` instead and let Juncture manage refresh tokens.
+
+#### Jira Namespace (`juncture.jira.*`)
+
+##### Project Operations
+
+```typescript
+// Get all available projects
+const projects = await juncture.jira.getProjects();
+console.log('Available projects:', projects.projects);
+
+// Select a project
+await juncture.jira.selectProject({ projectId: 'project-123' });
+
+// Get currently selected project
+const selectedProject = await juncture.jira.getSelectedProjectId();
+console.log('Selected project:', selectedProject.projectId);
+```
+
+##### Ticket Operations
+
+```typescript
+// Get tickets for the current project
+const tickets = await juncture.jira.getTickets({ maxResults: 50 });
+console.log('Tickets:', tickets.tickets);
+
+// Get tickets for a specific sprint
+const sprintTickets = await juncture.jira.getTicketsForSprint({
+  sprintId: 'sprint-123',
+  maxResults: 25
+});
+
+// Get detailed information about a specific issue
+const issue = await juncture.jira.getIssue({ issueKey: 'PROJ-123' });
+console.log('Issue details:', issue.issue);
+
+// Create a new ticket
+const newTicket = await juncture.jira.createTicket({
+  projectKey: 'PROJ',
+  issueType: 'Task',
+  summary: 'New task',
+  description: 'Task description',
+  priority: 'Medium'
+});
+
+// Edit an existing issue
+await juncture.jira.editIssue({
+  issueKey: 'PROJ-123',
+  fields: {
+    summary: 'Updated summary',
+    description: 'Updated description'
+  }
+});
+
+// Delete an issue
+await juncture.jira.deleteIssue({ issueKey: 'PROJ-123' });
+```
+
+##### Sprint Operations
+
+```typescript
+// Get all sprints for the current project
+const sprints = await juncture.jira.getSprints({ maxResults: 20 });
+console.log('All sprints:', sprints.sprints);
+
+// Get only active sprints
+const activeSprints = await juncture.jira.getActiveSprints();
+console.log('Active sprints:', activeSprints.sprints);
+```
+
+##### Board Operations
+
+```typescript
+// Get boards for the current project
+const boards = await juncture.jira.getBoards({ maxResults: 10 });
+console.log('Available boards:', boards.boards);
+```
+
+### Complete Backend Example
+
+Here's a complete example of using the backend SDK:
+
+```typescript
+import { JunctureBackend } from 'juncture-sdk';
+
+const juncture = new JunctureBackend({
+  config: {
+    junctureApiUrl: 'https://api.juncture.com',
+    junctureSecretKey: 'your-secret-key'
+  }
+});
+
+// 1. Check connection status
+const connectionStatus = await juncture.general.checkConnectionValidity({
+  externalId: 'project-123',
+  provider: 'jira'
+});
+
+if (!connectionStatus.exists || connectionStatus.isInvalid) {
+  console.log('Connection needs to be reauthorized');
+  return;
+}
+
+// 2. Get access token for API calls
+const token = await juncture.general.getAccessToken({
+  externalId: 'project-123',
+  provider: 'jira'
+});
+
+// 3. Work with Jira projects
+const projects = await juncture.jira.getProjects();
+await juncture.jira.selectProject({ projectId: projects.projects[0].id });
+
+// 4. Get tickets
+const tickets = await juncture.jira.getTickets({ maxResults: 10 });
+console.log('Recent tickets:', tickets.tickets);
+
+// 5. Create a new ticket
+const newTicket = await juncture.jira.createTicket({
+  projectKey: 'PROJ',
+  issueType: 'Bug',
+  summary: 'Critical bug found',
+  description: 'Detailed bug description',
+  priority: 'High'
+});
+
+console.log('Created ticket:', newTicket.ticketKey);
+```
 
 ## Available Methods
 
@@ -195,10 +370,11 @@ The frontend SDK is designed to work with the following API routes:
 ### Backend SDK Endpoints
 The backend SDK is designed to work with the following API routes:
 
-- **Connection Management**: `/check-connection-validity`, `/get-connection-credentials`, `/get-access-token`
-- **Jira Operations**: `/get-all-projects`, `/select-project`, `/get-tickets-for-project`, `/create-ticket`, `/delete-issue`, `/get-boards-for-project`, `/get-all-sprints-for-project`, `/get-active-sprints-for-project`, `/get-tickets-for-sprint`, `/get-issue-details`, `/edit-issue`
-
-*Note: Backend SDK method implementations will be added in future updates.*
+- **General**: `/check-connection-validity`, `/get-connection-credentials`, `/get-access-token`
+- **Jira Projects**: `/get-all-projects`, `/select-project`, `/get-selected-project-id`
+- **Jira Tickets**: `/get-tickets-for-project`, `/get-tickets-for-sprint`, `/get-issue-details`, `/create-ticket`, `/edit-issue`, `/delete-issue`
+- **Jira Sprints**: `/get-all-sprints-for-project`, `/get-active-sprints-for-project`
+- **Jira Boards**: `/get-boards-for-project`
 
 ## TypeScript Support
 
@@ -211,7 +387,10 @@ import {
   JunctureBackend,
   JunctureBackendConfig,
   ProviderType,
-  InitiateOAuthFlowRequest
+  InitiateOAuthFlowRequest,
+  CheckConnectionValidityRequest,
+  JiraProject,
+  JiraTicket
 } from 'juncture-sdk';
 
 // Frontend configuration
@@ -229,10 +408,15 @@ const backendConfig: JunctureBackendConfig = {
 const frontend = new JunctureFrontend({ config: frontendConfig });
 const backend = new JunctureBackend({ config: backendConfig });
 
-// Type-safe OAuth request
+// Type-safe requests
 const oauthRequest: InitiateOAuthFlowRequest = {
   provider: 'jira',
   externalId: 'project-123'
+};
+
+const connectionRequest: CheckConnectionValidityRequest = {
+  externalId: 'project-123',
+  provider: 'jira'
 };
 ```
 
@@ -258,13 +442,13 @@ API errors are also handled gracefully:
 
 ```typescript
 try {
-  const authUrl = await juncture.getOAuthAuthorizationUrl({
-    provider: 'jira',
-    externalId: 'project-123'
+  const token = await juncture.general.getAccessToken({
+    externalId: 'project-123',
+    provider: 'jira'
   });
 } catch (error) {
-  console.error('Failed to get auth URL:', error.message);
-  // Output: "Failed to get OAuth authorization URL: Invalid provider"
+  console.error('Failed to get access token:', error.message);
+  // Output: "Failed to get access token: Reauthorization required: Token expired"
 }
 ```
 
