@@ -1,0 +1,21 @@
+{
+  "name": "juncture-sdk",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": ["jira", "sdk", "oauth", "integration"],
+  "author": "Jaiden Lee",
+  "license": "MIT",
+  "description": "A TypeScript SDK for integrating Jira using Juncture",
+  "dependencies": {
+    "axios": "^1.10.0"
+  },
+  "files": ["dist"],
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "typescript": "^5.8.3"
+  }
+}

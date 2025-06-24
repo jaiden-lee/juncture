@@ -1,0 +1,17 @@
+# Source files
+src/
+tests/
+node_modules/
+*.test.ts
+*.spec.ts
+
+# Config files
+tsconfig.json
+.npmignore
+.gitignore
+.eslint*
+.prettier*
+
+# Misc
+.vscode/
+.env
