@@ -1,0 +1,9 @@
+[submodule "server"]
+	path = server
+	url = https://github.com/jaiden-lee/juncture-core-server.git
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/jaiden-lee/juncture-core-frontend
+[submodule "juncture-sdk"]
+	path = juncture-sdk
+	url = https://github.com/jaiden-lee/juncture-core-sdk
