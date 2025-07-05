@@ -24,6 +24,7 @@ UPSTASH_REDIS_REST_URL=<UPSTASH_REDIS_REST_URL>
 UPSTASH_REDIS_REST_TOKEN=<UPSTASH_REDIS_REST_TOKEN>
 DATABASE_URL=<POSTGRES_DATABASE_URL>
 JUNCTURE_SECRET_KEY=<create your own secret key and provide it here>
+JUNCTURE_FRONTEND_URL=<i.e., http://localhost:3000>
 
 
 # Jira (if self-hosting, provide your own credentials)
